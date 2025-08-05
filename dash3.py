@@ -360,8 +360,8 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # Configurações - IDs das planilhas
-CLASSIFICACAO_SHEET_ID = "classificacao_sheet_id"
-PESQUISA_SHEET_ID = "pesquisa_sheet_id"
+CLASSIFICACAO_SHEET_ID = st.secrets["classificacao_sheet_id"]
+PESQUISA_SHEET_ID = st.secrets["pesquisa_sheet_id"]
 ACTIONS_FILE = "cs_actions_log.json"
 
 # Configurações Google My Business
