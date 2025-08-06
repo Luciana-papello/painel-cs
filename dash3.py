@@ -44,46 +44,11 @@ if not st.session_state.autenticado:
 
 
 # CSS aprimorado e moderno com fonte Montserrat + CORREÇÃO keyboard_arrow_right
+
 st.markdown("""
 <style>
     /* Importar fonte Montserrat do Google Fonts */
     @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800&display=swap');
-    
-    /* CORREÇÃO: Ocultar keyboard_arrow_right indesejado */
-    span:contains("keyboard_arrow_right"),
-    div:contains("keyboard_arrow_right") {
-        color: transparent !important;
-        font-size: 0 !important;
-        display: none !important;
-    }
-    
-    /* Ocultar textos específicos nos dropdowns */
-    .stSelectbox [data-baseweb="select"] span[aria-hidden="true"] {
-        display: none !important;
-    }
-    
-    .stMultiSelect [data-baseweb="select"] span[aria-hidden="true"] {
-        display: none !important;
-    }
-    
-    /* Substituir por ícones corretos */
-    .stSelectbox [data-baseweb="select"] button::after {
-        content: "▼";
-        position: absolute;
-        right: 12px;
-        color: #666;
-        font-size: 12px;
-        pointer-events: none;
-    }
-    
-    .stMultiSelect [data-baseweb="select"] button::after {
-        content: "▼";
-        position: absolute;
-        right: 12px;
-        color: #666;
-        font-size: 12px;
-        pointer-events: none;
-    }
     
     /* Reset e base */
     .main .block-container {
@@ -395,39 +360,101 @@ st.markdown("""
 </style>
 
 <script>
-// JavaScript para remover keyboard_arrow_right dinamicamente
-document.addEventListener('DOMContentLoaded', function() {
-    function removeArrowTexts() {
-        const elements = document.querySelectorAll('span, div');
-        elements.forEach(function(el) {
-            if (el.textContent && el.textContent.trim() === 'keyboard_arrow_right') {
-                el.style.display = 'none';
-                el.style.visibility = 'hidden';
-                el.textContent = '';
+// SOLUÇÃO DEFINITIVA JAVASCRIPT - Mais robusta e específica
+(function() {
+    'use strict';
+    
+    function cleanKeyboardArrowText() {
+        // Procurar por TODOS os elementos da página
+        const allElements = document.querySelectorAll('*');
+        
+        allElements.forEach(function(element) {
+            // Verificar o texto de cada elemento
+            if (element.childNodes) {
+                element.childNodes.forEach(function(node) {
+                    if (node.nodeType === 3) { // Text node
+                        if (node.textContent && node.textContent.trim() === 'keyboard_arrow_right') {
+                            node.textContent = '';
+                        }
+                    }
+                });
             }
+            
+            // Verificar também innerHTML e textContent diretos
+            if (element.textContent === 'keyboard_arrow_right' && element.children.length === 0) {
+                element.textContent = '';
+                element.style.display = 'none';
+                element.style.visibility = 'hidden';
+            }
+            
+            // Verificar especificamente em spans
+            if (element.tagName === 'SPAN' && element.textContent.includes('keyboard_arrow_right')) {
+                element.textContent = element.textContent.replace(/keyboard_arrow_right/g, '');
+                if (element.textContent.trim() === '') {
+                    element.style.display = 'none';
+                }
+            }
+        });
+        
+        // Limpar especificamente elementos do Streamlit
+        const streamlitSelectors = [
+            '[data-baseweb="select"] span',
+            '.stSelectbox span',
+            '.stMultiSelect span',
+            'div[role="button"] span',
+            'div[role="listbox"] span'
+        ];
+        
+        streamlitSelectors.forEach(function(selector) {
+            const elements = document.querySelectorAll(selector);
+            elements.forEach(function(el) {
+                if (el.textContent === 'keyboard_arrow_right') {
+                    el.textContent = '';
+                    el.style.display = 'none';
+                }
+            });
         });
     }
     
     // Executar imediatamente
-    removeArrowTexts();
+    cleanKeyboardArrowText();
     
-    // Executar periodicamente para capturar elementos criados dinamicamente
-    setInterval(removeArrowTexts, 500);
+    // Executar periodicamente (mais frequente)
+    setInterval(cleanKeyboardArrowText, 200);
     
     // Observar mudanças no DOM
     const observer = new MutationObserver(function(mutations) {
+        let shouldClean = false;
         mutations.forEach(function(mutation) {
-            if (mutation.type === 'childList') {
-                removeArrowTexts();
+            if (mutation.type === 'childList' && mutation.addedNodes.length > 0) {
+                shouldClean = true;
             }
         });
+        if (shouldClean) {
+            setTimeout(cleanKeyboardArrowText, 50);
+        }
     });
     
+    // Configurar observador
     observer.observe(document.body, {
         childList: true,
-        subtree: true
+        subtree: true,
+        characterData: true
     });
-});
+    
+    // Limpar quando a página carregar completamente
+    window.addEventListener('load', function() {
+        setTimeout(cleanKeyboardArrowText, 100);
+        setTimeout(cleanKeyboardArrowText, 500);
+        setTimeout(cleanKeyboardArrowText, 1000);
+    });
+    
+    // Limpar quando Streamlit recarregar componentes
+    document.addEventListener('streamlit:render', function() {
+        setTimeout(cleanKeyboardArrowText, 100);
+    });
+    
+})();
 </script>
 """, unsafe_allow_html=True)
 
