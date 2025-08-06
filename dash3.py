@@ -458,7 +458,41 @@ st.markdown("""
 </script>
 """, unsafe_allow_html=True)
 
-# Configurações - IDs das planilhas
+# Interceptar ANTES do Streamlit renderizar
+st.markdown("""
+<script>
+// INTERCEPTAR ANTES DO STREAMLIT
+document.addEventListener('DOMContentLoaded', function() {
+    // Observar ANTES de qualquer renderização
+    const originalInnerHTML = Object.getOwnPropertyDescriptor(Element.prototype, 'innerHTML');
+    
+    Object.defineProperty(Element.prototype, 'innerHTML', {
+        set: function(value) {
+            if (typeof value === 'string' && value.includes('keyboard_arrow_right')) {
+                value = value.replace(/keyboard_arrow_right/g, '▼');
+            }
+            return originalInnerHTML.set.call(this, value);
+        },
+        get: originalInnerHTML.get
+    });
+    
+    // Interceptar textContent também
+    const originalTextContent = Object.getOwnPropertyDescriptor(Node.prototype, 'textContent');
+    
+    Object.defineProperty(Node.prototype, 'textContent', {
+        set: function(value) {
+            if (typeof value === 'string' && value.includes('keyboard_arrow_right')) {
+                value = value.replace(/keyboard_arrow_right/g, '▼');
+            }
+            return originalTextContent.set.call(this, value);
+        },
+        get: originalTextContent.get
+    });
+});
+</script>
+""", unsafe_allow_html=True)
+
+#Configurações - IDs das planilhas
 CLASSIFICACAO_SHEET_ID = st.secrets["classificacao_sheet_id"]
 PESQUISA_SHEET_ID = st.secrets["pesquisa_sheet_id"]
 ACTIONS_FILE = "cs_actions_log.json"
