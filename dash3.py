@@ -47,8 +47,8 @@ if not st.session_state.autenticado:
 
 st.markdown("""
 <style>
-    /* Importar fonte Montserrat do Google Fonts */
-    @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800&display=swap');
+    /* Importar fonte moderna */
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
     
     /* Reset e base */
     .main .block-container {
@@ -57,25 +57,9 @@ st.markdown("""
         max-width: 1200px;
     }
     
-    /* Fonte global - Montserrat para TUDO */
+    /* Fonte global */
     html, body, [class*="css"] {
-        font-family: 'Montserrat', sans-serif !important;
-    }
-    
-    /* Forçar Montserrat em todos os elementos */
-    *, *::before, *::after {
-        font-family: 'Montserrat', sans-serif !important;
-    }
-    
-    /* Elementos específicos do Streamlit */
-    .stSelectbox label, .stMultiSelect label, .stTextInput label,
-    .stDateInput label, .stCheckbox label, .stButton button,
-    .stMetric label, .stMetric div, .stMarkdown, .stText,
-    div[data-baseweb="select"] span, .stExpander,
-    [data-testid="stSidebar"] *, [data-testid="stHeader"] *,
-    .stTabs [data-baseweb="tab-list"] button,
-    .stTabs [data-baseweb="tab-panel"] * {
-        font-family: 'Montserrat', sans-serif !important;
+        font-family: 'Inter', sans-serif;
     }
     
     /* Header principal com cores Papello */
@@ -93,14 +77,12 @@ st.markdown("""
         font-weight: 700;
         margin: 0;
         text-shadow: 0 2px 4px rgba(0,0,0,0.3);
-        font-family: 'Montserrat', sans-serif !important;
     }
     
     .main-header p {
         font-size: 1.2rem;
         margin: 0.5rem 0 0 0;
         opacity: 0.9;
-        font-family: 'Montserrat', sans-serif !important;
     }
     
     /* Cards de métricas modernos */
@@ -121,27 +103,24 @@ st.markdown("""
     
     .metric-card h3 {
         font-size: 0.9rem;
-        font-weight: 600;
+        font-weight: 500;
         color: #64748b;
         margin: 0 0 0.5rem 0;
         text-transform: uppercase;
         letter-spacing: 0.05em;
-        font-family: 'Montserrat', sans-serif !important;
     }
     
     .metric-card .value {
         font-size: 2.2rem;
-        font-weight: 800;
+        font-weight: 700;
         margin: 0;
         line-height: 1;
-        font-family: 'Montserrat', sans-serif !important;
     }
     
     .metric-card .delta {
         font-size: 0.85rem;
         margin: 0.5rem 0 0 0;
         font-weight: 500;
-        font-family: 'Montserrat', sans-serif !important;
     }
     
     /* Cores dos cards por prioridade */
@@ -218,7 +197,6 @@ st.markdown("""
         font-weight: 600;
         font-size: 1.1rem;
         margin: 0;
-        font-family: 'Montserrat', sans-serif !important;
     }
     
     .alert-priority {
@@ -228,7 +206,6 @@ st.markdown("""
     .alert-content {
         color: #374151;
         line-height: 1.5;
-        font-family: 'Montserrat', sans-serif !important;
     }
     
     .alert-meta {
@@ -237,7 +214,6 @@ st.markdown("""
         margin-top: 1rem;
         font-size: 0.85rem;
         color: #6b7280;
-        font-family: 'Montserrat', sans-serif !important;
     }
     
     /* Seções */
@@ -252,10 +228,9 @@ st.markdown("""
     
     .section-header h2 {
         font-size: 1.5rem;
-        font-weight: 700;
+        font-weight: 600;
         margin: 0;
         color: #1f2937;
-        font-family: 'Montserrat', sans-serif !important;
     }
     
     .section-header .emoji {
@@ -291,66 +266,6 @@ st.markdown("""
         font-weight: 500;
         margin-top: 0.25rem;
         color: #475569;
-        font-family: 'Montserrat', sans-serif !important;
-    }
-    
-    /* Sidebar customizada */
-    .css-1d391kg {
-        font-family: 'Montserrat', sans-serif !important;
-    }
-    
-    /* Títulos e textos da sidebar */
-    .css-1d391kg h1, .css-1d391kg h2, .css-1d391kg h3,
-    .css-1d391kg p, .css-1d391kg div, .css-1d391kg span {
-        font-family: 'Montserrat', sans-serif !important;
-    }
-    
-    /* Botões personalizados */
-    .stButton > button {
-        font-family: 'Montserrat', sans-serif !important;
-        font-weight: 600 !important;
-        border-radius: 8px !important;
-        transition: all 0.2s ease !important;
-    }
-    
-    .stButton > button:hover {
-        transform: translateY(-1px) !important;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.15) !important;
-    }
-    
-    /* Métricas do Streamlit */
-    [data-testid="metric-container"] {
-        font-family: 'Montserrat', sans-serif !important;
-    }
-    
-    [data-testid="metric-container"] > div {
-        font-family: 'Montserrat', sans-serif !important;
-    }
-    
-    /* Tabs customizadas */
-    .stTabs [data-baseweb="tab-list"] {
-        gap: 8px;
-    }
-    
-    .stTabs [data-baseweb="tab-list"] button {
-        font-family: 'Montserrat', sans-serif !important;
-        font-weight: 600 !important;
-        border-radius: 8px !important;
-    }
-    
-    /* Expanders */
-    .streamlit-expander {
-        font-family: 'Montserrat', sans-serif !important;
-    }
-    
-    .streamlit-expander .streamlit-expanderHeader {
-        font-family: 'Montserrat', sans-serif !important;
-        font-weight: 600 !important;
-    }
-    
-    /* Gráficos Plotly - forçar fonte */
-    .js-plotly-plot .plotly text {
-        font-family: 'Montserrat', sans-serif !important;
     }
     
     /* Ocultar elementos padrão do Streamlit */
@@ -358,139 +273,9 @@ st.markdown("""
     footer {visibility: hidden;}
     header {visibility: hidden;}
 </style>
-
-<script>
-// SOLUÇÃO DEFINITIVA JAVASCRIPT - Mais robusta e específica
-(function() {
-    'use strict';
-    
-    function cleanKeyboardArrowText() {
-        // Procurar por TODOS os elementos da página
-        const allElements = document.querySelectorAll('*');
-        
-        allElements.forEach(function(element) {
-            // Verificar o texto de cada elemento
-            if (element.childNodes) {
-                element.childNodes.forEach(function(node) {
-                    if (node.nodeType === 3) { // Text node
-                        if (node.textContent && node.textContent.trim() === 'keyboard_arrow_right') {
-                            node.textContent = '';
-                        }
-                    }
-                });
-            }
-            
-            // Verificar também innerHTML e textContent diretos
-            if (element.textContent === 'keyboard_arrow_right' && element.children.length === 0) {
-                element.textContent = '';
-                element.style.display = 'none';
-                element.style.visibility = 'hidden';
-            }
-            
-            // Verificar especificamente em spans
-            if (element.tagName === 'SPAN' && element.textContent.includes('keyboard_arrow_right')) {
-                element.textContent = element.textContent.replace(/keyboard_arrow_right/g, '');
-                if (element.textContent.trim() === '') {
-                    element.style.display = 'none';
-                }
-            }
-        });
-        
-        // Limpar especificamente elementos do Streamlit
-        const streamlitSelectors = [
-            '[data-baseweb="select"] span',
-            '.stSelectbox span',
-            '.stMultiSelect span',
-            'div[role="button"] span',
-            'div[role="listbox"] span'
-        ];
-        
-        streamlitSelectors.forEach(function(selector) {
-            const elements = document.querySelectorAll(selector);
-            elements.forEach(function(el) {
-                if (el.textContent === 'keyboard_arrow_right') {
-                    el.textContent = '';
-                    el.style.display = 'none';
-                }
-            });
-        });
-    }
-    
-    // Executar imediatamente
-    cleanKeyboardArrowText();
-    
-    // Executar periodicamente (mais frequente)
-    setInterval(cleanKeyboardArrowText, 200);
-    
-    // Observar mudanças no DOM
-    const observer = new MutationObserver(function(mutations) {
-        let shouldClean = false;
-        mutations.forEach(function(mutation) {
-            if (mutation.type === 'childList' && mutation.addedNodes.length > 0) {
-                shouldClean = true;
-            }
-        });
-        if (shouldClean) {
-            setTimeout(cleanKeyboardArrowText, 50);
-        }
-    });
-    
-    // Configurar observador
-    observer.observe(document.body, {
-        childList: true,
-        subtree: true,
-        characterData: true
-    });
-    
-    // Limpar quando a página carregar completamente
-    window.addEventListener('load', function() {
-        setTimeout(cleanKeyboardArrowText, 100);
-        setTimeout(cleanKeyboardArrowText, 500);
-        setTimeout(cleanKeyboardArrowText, 1000);
-    });
-    
-    // Limpar quando Streamlit recarregar componentes
-    document.addEventListener('streamlit:render', function() {
-        setTimeout(cleanKeyboardArrowText, 100);
-    });
-    
-})();
-</script>
 """, unsafe_allow_html=True)
 
-# Interceptar ANTES do Streamlit renderizar
-st.markdown("""
-<script>
-// INTERCEPTAR ANTES DO STREAMLIT
-document.addEventListener('DOMContentLoaded', function() {
-    // Observar ANTES de qualquer renderização
-    const originalInnerHTML = Object.getOwnPropertyDescriptor(Element.prototype, 'innerHTML');
-    
-    Object.defineProperty(Element.prototype, 'innerHTML', {
-        set: function(value) {
-            if (typeof value === 'string' && value.includes('keyboard_arrow_right')) {
-                value = value.replace(/keyboard_arrow_right/g, '▼');
-            }
-            return originalInnerHTML.set.call(this, value);
-        },
-        get: originalInnerHTML.get
-    });
-    
-    // Interceptar textContent também
-    const originalTextContent = Object.getOwnPropertyDescriptor(Node.prototype, 'textContent');
-    
-    Object.defineProperty(Node.prototype, 'textContent', {
-        set: function(value) {
-            if (typeof value === 'string' && value.includes('keyboard_arrow_right')) {
-                value = value.replace(/keyboard_arrow_right/g, '▼');
-            }
-            return originalTextContent.set.call(this, value);
-        },
-        get: originalTextContent.get
-    });
-});
-</script>
-""", unsafe_allow_html=True)
+
 
 #Configurações - IDs das planilhas
 CLASSIFICACAO_SHEET_ID = st.secrets["classificacao_sheet_id"]
