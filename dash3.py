@@ -43,13 +43,47 @@ if not st.session_state.autenticado:
     st.stop() 
 
 
-# CSS aprimorado e moderno com fonte Montserrat
+# CSS aprimorado e moderno com fonte Montserrat + CORREÇÃO keyboard_arrow_right
 st.markdown("""
-<style> 
-            
-    css<br>span[data-testid="stIconMaterial"] {<br> display: none; /* ou visibility:hidden */<br>}<br>        
+<style>
     /* Importar fonte Montserrat do Google Fonts */
     @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800&display=swap');
+    
+    /* CORREÇÃO: Ocultar keyboard_arrow_right indesejado */
+    span:contains("keyboard_arrow_right"),
+    div:contains("keyboard_arrow_right") {
+        color: transparent !important;
+        font-size: 0 !important;
+        display: none !important;
+    }
+    
+    /* Ocultar textos específicos nos dropdowns */
+    .stSelectbox [data-baseweb="select"] span[aria-hidden="true"] {
+        display: none !important;
+    }
+    
+    .stMultiSelect [data-baseweb="select"] span[aria-hidden="true"] {
+        display: none !important;
+    }
+    
+    /* Substituir por ícones corretos */
+    .stSelectbox [data-baseweb="select"] button::after {
+        content: "▼";
+        position: absolute;
+        right: 12px;
+        color: #666;
+        font-size: 12px;
+        pointer-events: none;
+    }
+    
+    .stMultiSelect [data-baseweb="select"] button::after {
+        content: "▼";
+        position: absolute;
+        right: 12px;
+        color: #666;
+        font-size: 12px;
+        pointer-events: none;
+    }
     
     /* Reset e base */
     .main .block-container {
@@ -359,6 +393,42 @@ st.markdown("""
     footer {visibility: hidden;}
     header {visibility: hidden;}
 </style>
+
+<script>
+// JavaScript para remover keyboard_arrow_right dinamicamente
+document.addEventListener('DOMContentLoaded', function() {
+    function removeArrowTexts() {
+        const elements = document.querySelectorAll('span, div');
+        elements.forEach(function(el) {
+            if (el.textContent && el.textContent.trim() === 'keyboard_arrow_right') {
+                el.style.display = 'none';
+                el.style.visibility = 'hidden';
+                el.textContent = '';
+            }
+        });
+    }
+    
+    // Executar imediatamente
+    removeArrowTexts();
+    
+    // Executar periodicamente para capturar elementos criados dinamicamente
+    setInterval(removeArrowTexts, 500);
+    
+    // Observar mudanças no DOM
+    const observer = new MutationObserver(function(mutations) {
+        mutations.forEach(function(mutation) {
+            if (mutation.type === 'childList') {
+                removeArrowTexts();
+            }
+        });
+    });
+    
+    observer.observe(document.body, {
+        childList: true,
+        subtree: true
+    });
+});
+</script>
 """, unsafe_allow_html=True)
 
 # Configurações - IDs das planilhas
@@ -414,7 +484,8 @@ CHART_COLORS = {
     }
 }
 
-
+# [Resto do código permanece igual - todas as funções auxiliares, integrações, etc.]
+# Mantendo todo o código existente a partir daqui...
 
 # === INTEGRAÇÃO GOOGLE MY BUSINESS ===
 
