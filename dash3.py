@@ -474,13 +474,16 @@ def load_google_sheet_public(sheet_id, tab_name):
 
 @st.cache_data(ttl=300)
 def load_satisfaction_data():
-    """Carrega dados de pesquisa de satisfação"""
+    """Carrega dados de pesquisa de satisfação - VERSÃO CORRIGIDA"""
     try:
         url = f"https://docs.google.com/spreadsheets/d/{PESQUISA_SHEET_ID}/gviz/tq?tqx=out:csv"
         df = pd.read_csv(url)
-        df.columns = df.columns.str.strip().str.lower()
         
-        date_cols = [col for col in df.columns if 'data' in col or 'timestamp' in col or 'carimbo' in col]
+        # NÃO ALTERAR OS NOMES DAS COLUNAS - manter originais
+        df.columns = df.columns.str.strip()  # Apenas remover espaços extras
+        
+        # Converter apenas colunas de data
+        date_cols = [col for col in df.columns if any(x in col.lower() for x in ['data', 'timestamp', 'carimbo'])]
         for col in date_cols:
             df[col] = pd.to_datetime(df[col], errors='coerce')
         
@@ -571,7 +574,7 @@ def create_alert_card(cliente, priority_score):
     """
 
 def calculate_satisfaction_with_comparison(df_satisfacao, column_name, is_nps=False):
-    """Calcula satisfação dos últimos 30 dias - Versão específica para colunas da Papello"""
+    """Calcula satisfação dos últimos 30 dias - VERSÃO CORRIGIDA"""
     if df_satisfacao.empty:
         return "N/A", "Sem dados", "metric-info", ""
     
@@ -1332,134 +1335,79 @@ def show_executive_dashboard(df_clientes, df_pedidos, df_satisfacao, actions_log
                 "📈 NPS Interno", "N/A", "Sem dados", "metric-info", "Dados de NPS interno não disponíveis"
             ), unsafe_allow_html=True)
     else:
-        # Colunas fixas conhecidas da Papello
-        ATENDIMENTO_COLUMN = "Atendimento"
-        NPS_COLUMN = "Possibilidade de recomendação"
-        PRODUTO_COLUMN = "Produto"
-        PRAZO_COLUMN = "Prazo"
-        
-        col1, col2, col3, col4 = st.columns(4)
-        
-        with col1:
-            if ATENDIMENTO_COLUMN in df_satisfacao.columns:
-                value, delta, color, _ = calculate_satisfaction_with_comparison(df_satisfacao, ATENDIMENTO_COLUMN, False)
-                st.markdown(create_metric_card_with_explanation(
-                    "🎧 Atendimento", value, delta, color, "Avaliação da qualidade do atendimento (últimos 30 dias)"
-                ), unsafe_allow_html=True)
-            else:
-                st.markdown(create_metric_card_with_explanation(
-                    "🎧 Atendimento", "N/A", "Coluna não encontrada", "metric-info", f"Procurando por: '{ATENDIMENTO_COLUMN}'"
-                ), unsafe_allow_html=True)
-        
-        with col2:
-            if PRODUTO_COLUMN in df_satisfacao.columns:
-                value, delta, color, _ = calculate_satisfaction_with_comparison(df_satisfacao, PRODUTO_COLUMN, False)
-                st.markdown(create_metric_card_with_explanation(
-                    "📦 Produto", value, delta, color, "Qualidade dos produtos/embalagens"
-                ), unsafe_allow_html=True)
-            else:
-                st.markdown(create_metric_card_with_explanation(
-                    "📦 Produto", "N/A", "Coluna não encontrada", "metric-info", f"Procurando por: '{PRODUTO_COLUMN}'"
-                ), unsafe_allow_html=True)
-        
-        with col3:
-            if PRAZO_COLUMN in df_satisfacao.columns:
-                value, delta, color, _ = calculate_satisfaction_with_comparison(df_satisfacao, PRAZO_COLUMN, False)
-                st.markdown(create_metric_card_with_explanation(
-                    "⏰ Prazo", value, delta, color, "Cumprimento de prazos de entrega"
-                ), unsafe_allow_html=True)
-            else:
-                st.markdown(create_metric_card_with_explanation(
-                    "⏰ Prazo", "N/A", "Coluna não encontrada", "metric-info", f"Procurando por: '{PRAZO_COLUMN}'"
-                ), unsafe_allow_html=True)
-        
-        with col4:
-            if NPS_COLUMN in df_satisfacao.columns:
-                value, delta, color, _ = calculate_satisfaction_with_comparison(df_satisfacao, NPS_COLUMN, True)
-                st.markdown(create_metric_card_with_explanation(
-                    "📈 NPS Interno", value, delta, color, "Net Promoter Score (últimos 30 dias vs anterior)"
-                ), unsafe_allow_html=True)
-            else:
-                st.markdown(create_metric_card_with_explanation(
-                    "📈 NPS Interno", "N/A", "Coluna não encontrada", "metric-info", f"Procurando por: '{NPS_COLUMN}'"
-                ), unsafe_allow_html=True)
+        # === DEBUG: MOSTRAR COLUNAS DISPONÍVEIS ===
+     with st.expander("🔍 Debug - Colunas Disponíveis na Planilha"):
+        st.write("**Colunas encontradas:**")
+        for i, col in enumerate(df_satisfacao.columns, 1):
+            st.write(f"{i}. `{col}` (tipo: {df_satisfacao[col].dtype})")
+        st.write(f"**Total de registros:** {len(df_satisfacao)}")
     
-    # Distribuição visual moderna
-    col1, col2 = st.columns(2)
+    # === BUSCA FLEXÍVEL DAS COLUNAS ===
+     atendimento_col = None
+     produto_col = None  
+     prazo_col = None
+     nps_col = None
     
-    with col1:
-        st.markdown('<div class="section-header"><span class="emoji">🏆</span><h2>Distribuição por Nível</h2></div>', unsafe_allow_html=True)
-        
-        nivel_counts = df_clientes['nivel_cliente'].value_counts()
-        
-        fig_nivel = px.pie(
-            values=nivel_counts.values,
-            names=nivel_counts.index,
-            title="",
-            color=nivel_counts.index,
-            color_discrete_map=CHART_COLORS['nivel'],
-            hole=0.4
-        )
-        
-        fig_nivel.update_traces(
-            textposition='inside', 
-            textinfo='percent+label',
-            textfont_size=12,
-            hovertemplate='<b>%{label}</b><br>%{value} clientes<br>%{percent}<extra></extra>'
-        )
-        
-        fig_nivel.update_layout(
-            font=dict(family="Inter", size=12),
-            showlegend=False,
-            margin=dict(t=0, b=0, l=0, r=0),
-            height=300
-        )
-        
-        st.plotly_chart(fig_nivel, use_container_width=True)
-        
-        # Métricas de nível
-        for nivel, count in nivel_counts.items():
-            percentage = (count / total_clientes) * 100
-            color = CHART_COLORS['nivel'].get(nivel, COLORS['info'])
-            st.markdown(create_progress_bar(count, total_clientes, f"{nivel}", color), unsafe_allow_html=True)
+    # Buscar por padrões nas colunas
+     for col in df_satisfacao.columns:
+        col_lower = col.lower()
+        if 'atendimento' in col_lower and not atendimento_col:
+            atendimento_col = col
+        elif 'produto' in col_lower and not produto_col:
+            produto_col = col
+        elif 'prazo' in col_lower and not prazo_col:
+            prazo_col = col
+        elif any(x in col_lower for x in ['possibilidade', 'recomenda']) and not nps_col:
+            nps_col = col
     
-    with col2:
-        st.markdown('<div class="section-header"><span class="emoji">⚠️</span><h2>Status de Risco</h2></div>', unsafe_allow_html=True)
-        
-        # Agrupar riscos para melhor visualização
-        risco_agrupado = df_clientes['risco_recencia'].map({
-            'Alto': 'Alto Risco', 'Novo_Alto': 'Alto Risco',
-            'Médio': 'Médio Risco', 'Novo_Médio': 'Médio Risco', 
-            'Baixo': 'Baixo Risco', 'Novo_Baixo': 'Baixo Risco'
-        }).value_counts()
-        
-        fig_risco = px.bar(
-            x=risco_agrupado.values,
-            y=risco_agrupado.index,
-            orientation='h',
-            title="",
-            color=risco_agrupado.index,
-            color_discrete_map={
-                'Alto Risco': COLORS['danger'],
-                'Médio Risco': COLORS['warning'],
-                'Baixo Risco': COLORS['success']
-            }
-        )
-        
-        fig_risco.update_layout(
-            font=dict(family="Inter", size=12),
-            showlegend=False,
-            margin=dict(t=0, b=0, l=0, r=0),
-            height=300,
-            yaxis=dict(title=None),
-            xaxis=dict(title="Quantidade de Clientes")
-        )
-        
-        fig_risco.update_traces(
-            hovertemplate='<b>%{y}</b><br>%{x} clientes<extra></extra>'
-        )
-        
-        st.plotly_chart(fig_risco, use_container_width=True)
+    # Mostrar resultados da busca
+     st.info(f"🔍 **Colunas encontradas:** Atendimento=`{atendimento_col}` | Produto=`{produto_col}` | Prazo=`{prazo_col}` | NPS=`{nps_col}`")
+    
+     col1, col2, col3, col4 = st.columns(4)
+    
+     with col1:
+        if atendimento_col:
+            value, delta, color, _ = calculate_satisfaction_with_comparison(df_satisfacao, atendimento_col, False)
+            st.markdown(create_metric_card_with_explanation(
+                "🎧 Atendimento", value, delta, color, "Avaliação da qualidade do atendimento"
+            ), unsafe_allow_html=True)
+        else:
+            st.markdown(create_metric_card_with_explanation(
+                "🎧 Atendimento", "N/A", "Coluna não encontrada", "metric-info", "Nenhuma coluna com 'atendimento' encontrada"
+            ), unsafe_allow_html=True)
+    
+     with col2:
+        if produto_col:
+            value, delta, color, _ = calculate_satisfaction_with_comparison(df_satisfacao, produto_col, False)
+            st.markdown(create_metric_card_with_explanation(
+                "📦 Produto", value, delta, color, "Qualidade dos produtos"
+            ), unsafe_allow_html=True)
+        else:
+            st.markdown(create_metric_card_with_explanation(
+                "📦 Produto", "N/A", "Coluna não encontrada", "metric-info", "Nenhuma coluna com 'produto' encontrada"
+            ), unsafe_allow_html=True)
+    
+     with col3:
+        if prazo_col:
+            value, delta, color, _ = calculate_satisfaction_with_comparison(df_satisfacao, prazo_col, False)
+            st.markdown(create_metric_card_with_explanation(
+                "⏰ Prazo", value, delta, color, "Cumprimento de prazos"
+            ), unsafe_allow_html=True)
+        else:
+            st.markdown(create_metric_card_with_explanation(
+                "⏰ Prazo", "N/A", "Coluna não encontrada", "metric-info", "Nenhuma coluna com 'prazo' encontrada"
+            ), unsafe_allow_html=True)
+    
+     with col4:
+        if nps_col:
+            value, delta, color, _ = calculate_satisfaction_with_comparison(df_satisfacao, nps_col, True)
+            st.markdown(create_metric_card_with_explanation(
+                "📈 NPS Interno", value, delta, color, "Net Promoter Score interno"
+            ), unsafe_allow_html=True)
+        else:
+            st.markdown(create_metric_card_with_explanation(
+                "📈 NPS Interno", "N/A", "Coluna não encontrada", "metric-info", "Nenhuma coluna de NPS encontrada"
+            ), unsafe_allow_html=True)
     
     # Alertas críticos modernos
     st.markdown('<div class="section-header"><span class="emoji">🚨</span><h2>Alertas Críticos</h2></div>', unsafe_allow_html=True)
