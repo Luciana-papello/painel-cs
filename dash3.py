@@ -1358,90 +1358,428 @@ def show_executive_dashboard(df_clientes, df_pedidos, df_satisfacao, actions_log
             "Soma de toda receita gerada pelos clientes da base ativa"
         ), unsafe_allow_html=True)
     
-    # === ANÁLISE DE RECORRÊNCIA (código mantido igual) ===
+     # === ANÁLISE DE RECORRÊNCIA COM FILTRO DE DATA ===
+
     st.markdown('<div class="section-header"><span class="emoji">🔄</span><h2>Análise de Recorrência de Clientes</h2></div>', unsafe_allow_html=True)
+
     
+
     # Filtro de data específico para recorrência
+
     col1, col2, col3 = st.columns([2, 2, 1])
+
     
+
     with col1:
+
+        # Data inicial - padrão últimos 6 meses
+
         data_inicio = st.date_input(
+
             "📅 Data inicial",
+
             value=datetime.now() - timedelta(days=180),
+
             help="Data inicial para análise de recorrência"
+
         )
+
     
+
     with col2:
+
+        # Data final - padrão hoje
+
         data_fim = st.date_input(
+
             "📅 Data final",
+
             value=datetime.now(),
+
             help="Data final para análise de recorrência"
+
         )
+
     
+
     with col3:
+
+        # Botão para aplicar filtro
+
         if st.button("🔍 Analisar Período", type="primary"):
+
             st.cache_data.clear()
+
     
+
     # Converter datas para datetime
+
     data_inicio_dt = pd.to_datetime(data_inicio)
+
     data_fim_dt = pd.to_datetime(data_fim)
+
     
+
     # Mostrar período selecionado
+
     st.info(f"📊 **Período de análise:** {data_inicio.strftime('%d/%m/%Y')} até {data_fim.strftime('%d/%m/%Y')} ({(data_fim_dt - data_inicio_dt).days} dias)")
+
     
+
     recurrence_data = analyze_client_recurrence(df_pedidos, data_inicio_dt, data_fim_dt)
+
     
-    # [Código de recorrência mantido igual - não vou reescrever tudo aqui por questão de espaço]
+
+    if recurrence_data:
+
+        # Calcular período em dias para labels dinâmicos
+
+        periodo_dias = (data_fim_dt - data_inicio_dt).days
+
+        periodo_label = f"Período de {periodo_dias} dias"
+
+        
+
+        col1, col2, col3, col4 = st.columns(4)
+
+        
+
+        with col1:
+
+            st.markdown(create_metric_card_with_explanation(
+
+                "🆕 Novos Clientes",
+
+                f"{recurrence_data.get('pedidos_primeira', 0):,}",
+
+                periodo_label,
+
+                "metric-info",
+
+                f"Clientes que fizeram sua primeira compra no período selecionado ({data_inicio.strftime('%d/%m/%Y')} - {data_fim.strftime('%d/%m/%Y')})"
+
+            ), unsafe_allow_html=True)
+
+        
+
+        with col2:
+
+            st.markdown(create_metric_card_with_explanation(
+
+                "🔄 Recompras",
+
+                f"{recurrence_data.get('pedidos_recompra', 0):,}",
+
+                periodo_label, 
+
+                "metric-success",
+
+                f"Pedidos de clientes que já haviam comprado antes no período selecionado"
+
+            ), unsafe_allow_html=True)
+
+        
+
+        with col3:
+
+            taxa_conversao = recurrence_data.get('taxa_conversao', 0)
+
+            color_class = "metric-success" if taxa_conversao >= 30 else "metric-warning" if taxa_conversao >= 15 else "metric-danger"
+
+            st.markdown(create_metric_card_with_explanation(
+
+                "📈 Taxa de Conversão",
+
+                f"{taxa_conversao:.1f}%",
+
+                "Primeira → Recompra",
+
+                color_class,
+
+                "% de clientes únicos que fizeram primeira compra e depois recompraram no período"
+
+            ), unsafe_allow_html=True)
+
+        
+
+        with col4:
+
+            ticket_primeira = recurrence_data.get('ticket_primeira', 0)
+
+            ticket_recompra = recurrence_data.get('ticket_recompra', 0)
+
+            diferenca = ((ticket_recompra - ticket_primeira) / ticket_primeira * 100) if ticket_primeira > 0 else 0
+
+            
+
+            color_class = "metric-success" if diferenca > 0 else "metric-warning"
+
+            delta_text = f"↗️ +{diferenca:.1f}% vs 1ª compra" if diferenca > 0 else f"↘️ {diferenca:.1f}% vs 1ª compra" if diferenca < 0 else "➡️ Igual à 1ª compra"
+
+            
+
+            st.markdown(create_metric_card_with_explanation(
+
+                "💰 Ticket Recompra",
+
+                f"R$ {ticket_recompra:,.0f}",
+
+                delta_text,
+
+                color_class,
+
+                "Valor médio dos pedidos de recompra vs primeira compra no período"
+
+            ), unsafe_allow_html=True)
+
+        
+
+        # Gráficos de recorrência
+
+        col1, col2 = st.columns(2)
+
+        
+
+        with col1:
+
+            # Gráfico de pizza: primeira vs recompra (período completo)
+
+            labels = ['Primeira Compra', 'Recompra']
+
+            values = [recurrence_data.get('pedidos_primeira', 0), recurrence_data.get('pedidos_recompra', 0)]
+
+            
+
+            if sum(values) > 0:  # Só criar gráfico se houver dados
+
+                fig_recorrencia = px.pie(
+
+                    values=values,
+
+                    names=labels,
+
+                    title=f"Distribuição no Período ({periodo_dias} dias)",
+
+                    color=labels,
+
+                    color_discrete_map={
+
+                        'Primeira Compra': COLORS['warning'],
+
+                        'Recompra': COLORS['success']
+
+                    }
+
+                )
+
+                
+
+                fig_recorrencia.update_traces(
+
+                    textposition='inside',
+
+                    textinfo='percent+label',
+
+                    textfont_size=12
+
+                )
+
+                
+
+                fig_recorrencia.update_layout(
+
+                    font=dict(family="Inter", size=12),
+
+                    height=300,
+
+                    margin=dict(t=50, b=0, l=0, r=0)
+
+                )
+
+                
+
+                st.plotly_chart(fig_recorrencia, use_container_width=True)
+
+            else:
+
+                st.info("📊 Aguardando dados para gerar gráfico...")
+
+        
+
+        with col2:
+
+            # Comparação de tickets médios (período completo)
+
+            if ticket_primeira > 0 or ticket_recompra > 0:  # Só criar gráfico se houver dados
+
+                ticket_data = pd.DataFrame({
+
+                    'Tipo': ['Primeira Compra', 'Recompra'],
+
+                    'Ticket Médio': [ticket_primeira, ticket_recompra]
+
+                })
+
+                
+
+                fig_ticket = px.bar(
+
+                    ticket_data,
+
+                    x='Tipo',
+
+                    y='Ticket Médio',
+
+                    title=f"Ticket Médio no Período ({periodo_dias} dias)",
+
+                    color='Tipo',
+
+                    color_discrete_map={
+
+                        'Primeira Compra': COLORS['warning'],
+
+                        'Recompra': COLORS['success']
+
+                    }
+
+                )
+
+                
+
+                fig_ticket.update_layout(
+
+                    font=dict(family="Inter", size=12),
+
+                    height=300,
+
+                    margin=dict(t=50, b=0, l=0, r=0),
+
+                    showlegend=False
+
+                )
+
+                
+
+                fig_ticket.update_traces(
+
+                    hovertemplate='<b>%{x}</b><br>R$ %{y:,.0f}<extra></extra>'
+
+                )
+
+                
+
+                st.plotly_chart(fig_ticket, use_container_width=True)
+
+            else:
+
+                st.info("💰 Aguardando dados de ticket médio...")
+
     
+
+    else:
+
+        st.warning(f"📊 Nenhum dado de recorrência encontrado no período de {data_inicio.strftime('%d/%m/%Y')} até {data_fim.strftime('%d/%m/%Y')}. Tente selecionar um período diferente ou verifique se a aba 'pedidos_com_id2' contém dados neste intervalo.")
+
+    
+
     # Status da Base de Clientes
+
     st.markdown('<div class="section-header"><span class="emoji">🔄</span><h2>Status da Base de Clientes</h2></div>', unsafe_allow_html=True)
+
     
+
     col1, col2, col3, col4 = st.columns(4)
+
     
+
     with col1:
+
         st.markdown(create_metric_card_with_explanation(
+
             "👥 Base Total",
+
             f"{total_clientes:,}",
+
             "Clientes únicos",
+
             "metric-info",
+
             "Clientes com pelo menos 1 pedido nos últimos 24 meses"
+
         ), unsafe_allow_html=True)
+
     
+
     with col2:
+
         clientes_ativos = len(df_clientes[df_clientes['status_churn'] == 'Ativo'])
+
         taxa_ativos = (clientes_ativos / total_clientes * 100) if total_clientes > 0 else 0
+
         color_class = "metric-success" if taxa_ativos >= 50 else "metric-warning"
+
         st.markdown(create_metric_card_with_explanation(
+
             "✅ Ativos",
+
             f"{clientes_ativos:,}",
+
             f"{taxa_ativos:.1f}% da base",
+
             color_class,
+
             "Compraram dentro do prazo esperado para seu perfil"
+
         ), unsafe_allow_html=True)
+
     
+
     with col3:
+
         clientes_inativos = len(df_clientes[df_clientes['status_churn'] == 'Inativo'])
+
         taxa_inativos = (clientes_inativos / total_clientes * 100) if total_clientes > 0 else 0
+
         color_class = "metric-danger" if taxa_inativos >= 30 else "metric-warning"
+
         st.markdown(create_metric_card_with_explanation(
+
             "😴 Inativos",
+
             f"{clientes_inativos:,}",
+
             f"{taxa_inativos:.1f}% da base",
+
             color_class,
+
             "Não compram há muito tempo (>3x intervalo normal)"
+
         ), unsafe_allow_html=True)
+
     
+
     with col4:
+
         clientes_dormant = len(df_clientes[df_clientes['status_churn'].str.contains('Dormant', na=False)])
+
         taxa_dormant = (clientes_dormant / total_clientes * 100) if total_clientes > 0 else 0
+
         color_class = "metric-warning" if taxa_dormant >= 15 else "metric-success"
+
         st.markdown(create_metric_card_with_explanation(
+
             "💤 Dormant",
+
             f"{clientes_dormant:,}",
+
             f"{taxa_dormant:.1f}% da base",
+
             color_class,
+
             "Atrasados para próxima compra (>2x intervalo normal)"
+
         ), unsafe_allow_html=True)
+
     
     # === AVALIAÇÃO DO CLIENTE - VERSÃO LIMPA ===
     st.markdown('<div class="section-header"><span class="emoji">😊</span><h2>Avaliação do Cliente</h2></div>', unsafe_allow_html=True)
