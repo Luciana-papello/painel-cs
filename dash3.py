@@ -10,9 +10,6 @@ import os
 from io import BytesIO
 import requests
 from typing import Optional, Dict, List
-from google.oauth2 import service_account
-from googleapiclient.discovery import build
-from googleapiclient.errors import HttpError
 
 # Configuração da página
 st.set_page_config(
@@ -42,9 +39,7 @@ if not st.session_state.autenticado:
             st.error("❌ Senha incorreta. Tente novamente.")
     st.stop() 
 
-
-# CSS aprimorado e moderno com fonte Montserrat + CORREÇÃO keyboard_arrow_right
-
+# CSS aprimorado e moderno com fonte Montserrat
 st.markdown("""
 <style>
     /* Importar fonte moderna */
@@ -275,17 +270,10 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-
-
-#Configurações - IDs das planilhas
+# Configurações - IDs das planilhas
 CLASSIFICACAO_SHEET_ID = st.secrets["classificacao_sheet_id"]
 PESQUISA_SHEET_ID = st.secrets["pesquisa_sheet_id"]
 ACTIONS_FILE = "cs_actions_log.json"
-
-# Configurações Google My Business
-GOOGLE_CREDENTIALS_FILE = "arquivo-credentials"  # Arquivo de credenciais
-BUSINESS_NAME = "Papello embalagens"
-GOOGLE_PLACE_ID = None  # Será detectado automaticamente
 
 # Cores padronizadas - Identidade Visual Papello
 COLORS = {
@@ -329,212 +317,6 @@ CHART_COLORS = {
         'Novo_Baixo': COLORS['light_green']
     }
 }
-
-# [Resto do código permanece igual - todas as funções auxiliares, integrações, etc.]
-# Mantendo todo o código existente a partir daqui...
-
-# === INTEGRAÇÃO GOOGLE MY BUSINESS ===
-
-def load_google_credentials():
-    """Carrega credenciais do Google My Business"""
-    try:
-        if os.path.exists(GOOGLE_CREDENTIALS_FILE):
-            with open(GOOGLE_CREDENTIALS_FILE, 'r') as f:
-                return json.load(f)
-        return None
-    except Exception as e:
-        st.error(f"Erro ao carregar credenciais: {str(e)}")
-        return None
-
-def get_google_reviews_mockup(days_back=30):
-    """Dados de exemplo para avaliações do Google. Usado como fallback em caso de erro na API."""
-    st.warning(f"⚠️ Não foi possível conectar à API do Google. Exibindo dados de exemplo.")
-    import random
-    from datetime import datetime, timedelta
-    
-    reviews = []
-    nomes = ["Maria Silva", "João Santos", "Ana Costa", "Pedro Lima", "Carla Souza"]
-    comentarios = [
-        "Excelente qualidade das embalagens! Recomendo muito.",
-        "Atendimento nota 10, produtos chegaram rapidinho.",
-        "Sempre compro aqui, qualidade impecável.",
-        "Demora na entrega, mas produto é bom.",
-        "Preço um pouco alto, mas vale a qualidade."
-    ]
-    
-    for i in range(random.randint(5, 15)):
-        dias_atras = random.randint(0, days_back)
-        data_review = datetime.now() - timedelta(days=dias_atras)
-        nota = random.choice([3, 4, 5])
-        
-        reviews.append({
-            'data_avaliacao': data_review.strftime('%Y-%m-%d'),
-            'nome_cliente': random.choice(nomes),
-            'nota': nota,
-            'comentario': random.choice(comentarios),
-            'plataforma': 'Google (Exemplo)',
-            'respondida': random.choice(['Sim', 'Não']),
-            'resposta_empresa': 'Obrigado pela avaliação!' if random.random() < 0.6 else ''
-        })
-    return pd.DataFrame(reviews)
-
-def get_google_reviews_api(days_back=30):
-    """Busca avaliações reais do Google My Business via API, com fallback para mockup em caso de erro."""
-    from google.oauth2 import service_account
-    from googleapiclient.discovery import build
-    from googleapiclient.errors import HttpError
-
-    # 1. Autenticação e busca de contas
-    try:
-        if not os.path.exists(GOOGLE_CREDENTIALS_FILE):
-            return get_google_reviews_mockup(days_back)
-        
-        scopes = ['https://www.googleapis.com/auth/business.manage']
-        creds = service_account.Credentials.from_service_account_file(
-            GOOGLE_CREDENTIALS_FILE, scopes=scopes)
-        
-        # CORREÇÃO DEFINITIVA: Usar a API 'mybusinessaccountmanagement' para listar as empresas
-        # Esta API possui o método .list() para locations.
-        service_management = build('mybusinessaccountmanagement', 'v1', credentials=creds, cache_discovery=False)
-
-    except Exception as e:
-        st.error(f"❌ Erro ao autenticar com o Google: {e}")
-        st.info("Verifique se o arquivo `papello-credentials.json` está correto e se as APIs estão ativas.")
-        return get_google_reviews_mockup(days_back)
-
-    # 2. Encontrar o ID da Empresa (Location) usando o serviço correto
-    try:
-        # Primeiro, listamos as contas usando o novo serviço
-        accounts = service_management.accounts().list().execute()
-        if not accounts.get('accounts'):
-            st.error("❌ Nenhuma conta do Google Business encontrada para esta credencial.")
-            st.info("Adicione a conta de serviço como 'Gerente' no Perfil da Empresa no Google.")
-            return get_google_reviews_mockup(days_back)
-        
-        account_id = accounts['accounts'][0]['name']
-        
-        # Agora, listamos as locations (empresas) dentro da conta
-        locations = service_management.accounts().locations().list(parent=account_id).execute()
-        
-        if not locations.get('locations'):
-            st.error(f"❌ Nenhuma empresa encontrada na conta {account_id}.")
-            return get_google_reviews_mockup(days_back)
-            
-        target_location = None
-        for loc in locations['locations']:
-            if BUSINESS_NAME.lower() in loc.get('title', '').lower():
-                # O ID da location tem o formato "accounts/{accountId}/locations/{locationId}"
-                # Para a API de reviews, precisamos apenas de "locations/{locationId}" mas o ID completo funciona
-                target_location = loc['name'] 
-                break
-        
-        if not target_location:
-            st.error(f"❌ Não foi possível encontrar a empresa '{BUSINESS_NAME}'. Verifique o nome em seu script.")
-            return get_google_reviews_mockup(days_back)
-            
-    except HttpError as e:
-        st.error(f"❌ Erro HTTP ao buscar empresa: {e}. Verifique se a API 'Google My Business Account Management API' está ativada.")
-        return get_google_reviews_mockup(days_back)
-    except Exception as e:
-        st.error(f"❌ Erro inesperado ao buscar empresa: {e}")
-        return get_google_reviews_mockup(days_back)
-
-    # 3. Buscar as Avaliações (Reviews) - Esta parte continua igual
-    try:
-        service_reviews = build('mybusinessreviews', 'v1', credentials=creds, cache_discovery=False)
-        reviews_result = service_reviews.accounts().locations().reviews().list(parent=target_location).execute()
-        all_reviews = reviews_result.get('reviews', [])
-        
-        while 'nextPageToken' in reviews_result:
-            next_page_token = reviews_result['nextPageToken']
-            reviews_result = service_reviews.accounts().locations().reviews().list(
-                parent=target_location, pageToken=next_page_token).execute()
-            all_reviews.extend(reviews_result.get('reviews', []))
-
-        if not all_reviews:
-            st.success("✅ Conectado ao Google, mas nenhuma avaliação foi encontrada para esta empresa.")
-            return pd.DataFrame()
-
-    except HttpError as e:
-        st.error(f"❌ Erro HTTP ao buscar avaliações: {e}. Verifique as permissões da conta de serviço.")
-        return get_google_reviews_mockup(days_back)
-    except Exception as e:
-        st.error(f"❌ Erro inesperado ao buscar avaliações: {e}")
-        return get_google_reviews_mockup(days_back)
-
-    # 4. Formatar os Dados para o Dashboard
-    formatted_reviews = []
-    cutoff_date = datetime.now() - timedelta(days=days_back)
-    
-    for review in all_reviews:
-        review_date = pd.to_datetime(review.get('createTime')).tz_localize(None)
-        
-        if review_date >= cutoff_date:
-            rating_map = {'ONE': 1, 'TWO': 2, 'THREE': 3, 'FOUR': 4, 'FIVE': 5}
-            
-            formatted_reviews.append({
-                'data_avaliacao': review_date.strftime('%Y-%m-%d'),
-                'nome_cliente': review.get('reviewer', {}).get('displayName', 'Anônimo'),
-                'nota': rating_map.get(review.get('starRating', 'ZERO'), 0),
-                'comentario': review.get('comment', ''),
-                'plataforma': 'Google',
-                'respondida': 'Sim' if review.get('reviewReply') else 'Não',
-                'resposta_empresa': review.get('reviewReply', {}).get('comment', '')
-            })
-            
-    if not formatted_reviews:
-        st.info(f"✅ Conectado ao Google, mas nenhuma avaliação encontrada nos últimos {days_back} dias.")
-        return pd.DataFrame()
-
-    st.success("✅ Avaliações do Google carregadas com sucesso!")
-    return pd.DataFrame(formatted_reviews)
-
-def calculate_google_reviews_metrics(df_reviews):
-    """Calcula métricas das avaliações Google"""
-    if df_reviews.empty:
-        return {
-            'total_avaliacoes': 0, 'nota_media': 0, 'distribuicao_notas': {},
-            'taxa_resposta': 0, 'avaliacoes_mes': 0, 'tendencia': 'stable'
-        }
-    
-    df_reviews['data_avaliacao'] = pd.to_datetime(df_reviews['data_avaliacao'])
-    total_avaliacoes = len(df_reviews)
-    nota_media = df_reviews['nota'].mean()
-    
-    distribuicao = df_reviews['nota'].value_counts().sort_index()
-    distribuicao_dict = {f"{int(k)} estrelas": v for k, v in distribuicao.items()}
-    
-    respondidas = len(df_reviews[df_reviews['respondida'] == 'Sim'])
-    taxa_resposta = (respondidas / total_avaliacoes * 100) if total_avaliacoes > 0 else 0
-    
-    hoje = datetime.now()
-    inicio_mes = hoje.replace(day=1)
-    avaliacoes_mes = len(df_reviews[df_reviews['data_avaliacao'] >= inicio_mes])
-    
-    duas_semanas_atras = hoje - timedelta(days=14)
-    quatro_semanas_atras = hoje - timedelta(days=28)
-    
-    recentes = df_reviews[df_reviews['data_avaliacao'] >= duas_semanas_atras]['nota'].mean()
-    anteriores = df_reviews[
-        (df_reviews['data_avaliacao'] >= quatro_semanas_atras) & 
-        (df_reviews['data_avaliacao'] < duas_semanas_atras)
-    ]['nota'].mean()
-    
-    if pd.isna(recentes) or pd.isna(anteriores) or recentes == anteriores:
-        tendencia = 'stable'
-    elif recentes > anteriores:
-        tendencia = 'up'
-    else:
-        tendencia = 'down'
-    
-    return {
-        'total_avaliacoes': total_avaliacoes,
-        'nota_media': nota_media,
-        'distribuicao_notas': distribuicao_dict,
-        'taxa_resposta': taxa_resposta,
-        'avaliacoes_mes': avaliacoes_mes,
-        'tendencia': tendencia
-    }
 
 # === FUNÇÕES AUXILIARES ===
 
@@ -635,26 +417,47 @@ def convert_text_score_to_number(text_score):
     return np.nan
 
 def categorize_nps_from_text(text_score):
-    """Categoriza respostas em texto para NPS"""
-    if pd.isna(text_score) or text_score == "":
+    """Categoriza respostas em texto para NPS - Versão otimizada para Papello"""
+    if pd.isna(text_score) or text_score == "" or str(text_score).lower().strip() == "":
         return "Sem resposta"
     
     text_score = str(text_score).lower().strip()
     
-    # Detratores (0-6)
-    detrator_patterns = ['entre 0 e 1', 'entre 1 e 2', 'entre 2 e 3', 
-                        'entre 3 e 4', 'entre 4 e 5', 'entre 5 e 6', 'entre 1 e 6']
-    
-    if any(pattern in text_score for pattern in detrator_patterns):
-        return "Detrator"
+    # Detratores (0-6) - Padrões da sua planilha
+    detrator_patterns = [
+        'entre 0 e 1', 'entre 1 e 2', 'entre 2 e 3', 
+        'entre 3 e 4', 'entre 4 e 5', 'entre 5 e 6', 
+        'entre 1 e 6', '0', '1', '2', '3', '4', '5', '6'
+    ]
     
     # Neutros (7-8)
-    if 'entre 7 e 8' in text_score:
-        return "Neutro"
+    neutro_patterns = ['entre 7 e 8', '7', '8']
     
     # Promotores (9-10)
-    if 'entre 9 e 10' in text_score:
+    promotor_patterns = ['entre 9 e 10', '9', '10']
+    
+    # Verificar padrões (ordem importante - mais específico primeiro)
+    if any(pattern in text_score for pattern in promotor_patterns):
         return "Promotor"
+    elif any(pattern in text_score for pattern in neutro_patterns):
+        return "Neutro"
+    elif any(pattern in text_score for pattern in detrator_patterns):
+        return "Detrator"
+    
+    # Tentar extrair número se for formato numérico direto
+    import re
+    numbers = re.findall(r'\d+', text_score)
+    if numbers:
+        try:
+            score = int(numbers[0])
+            if score >= 9:
+                return "Promotor"
+            elif score >= 7:
+                return "Neutro"
+            elif score >= 0:
+                return "Detrator"
+        except ValueError:
+            pass
     
     return "Indefinido"
 
@@ -768,83 +571,112 @@ def create_alert_card(cliente, priority_score):
     """
 
 def calculate_satisfaction_with_comparison(df_satisfacao, column_name, is_nps=False):
-    """Calcula satisfação dos últimos 30 dias comparado com período anterior"""
-    if df_satisfacao.empty or not column_name:
+    """Calcula satisfação dos últimos 30 dias - Versão específica para colunas da Papello"""
+    if df_satisfacao.empty:
         return "N/A", "Sem dados", "metric-info", ""
     
-    # Buscar coluna de data
-    date_cols = [col for col in df_satisfacao.columns if any(x in col.lower() for x in ['data', 'timestamp', 'carimbo'])]
+    # Colunas fixas conhecidas da Papello
+    DATE_COLUMN = "Carimbo de data/hora"
     
-    if not date_cols:
-        # Se não tem data, calcular só o atual
-        todas_respostas = df_satisfacao[column_name].dropna()
-        if len(todas_respostas) == 0:
-            return "N/A", "Sem dados", "metric-info", ""
-        
-        if is_nps:
-            categorias = todas_respostas.apply(categorize_nps_from_text)
-            promotores = (categorias == 'Promotor').sum()
-            detratores = (categorias == 'Detrator').sum()
-            total_validas = len(categorias[categorias.isin(['Promotor', 'Neutro', 'Detrator'])])
-            
-            if total_validas > 0:
-                valor = ((promotores - detratores) / total_validas * 100)
-                color_class = "metric-success" if valor >= 50 else "metric-warning" if valor >= 0 else "metric-danger"
-                return f"{valor:.0f}", f"{total_validas} avaliações", color_class, ""
-        else:
-            scores_numericos = todas_respostas.apply(convert_text_score_to_number).dropna()
-            if len(scores_numericos) > 0:
-                valor = scores_numericos.mean()
-                color_class = "metric-success" if valor >= 8 else "metric-warning" if valor >= 6 else "metric-danger"
-                return f"{valor:.1f}/10", f"{len(todas_respostas)} avaliações", color_class, ""
-        
-        return "N/A", "Erro na conversão", "metric-info", ""
+    # Verificar se as colunas necessárias existem
+    if DATE_COLUMN not in df_satisfacao.columns:
+        st.error(f"❌ Coluna de data '{DATE_COLUMN}' não encontrada!")
+        st.info(f"📋 Colunas disponíveis: {list(df_satisfacao.columns)}")
+        return "N/A", "Coluna de data não encontrada", "metric-info", ""
     
-    # Processar com datas
-    date_col = date_cols[0]
+    if column_name not in df_satisfacao.columns:
+        st.error(f"❌ Coluna '{column_name}' não encontrada!")
+        st.info(f"📋 Colunas disponíveis: {list(df_satisfacao.columns)}")
+        return "N/A", "Coluna não encontrada", "metric-info", ""
+    
+    # Processar dados com a coluna de data conhecida
     df_temp = df_satisfacao.copy()
-    df_temp[date_col] = pd.to_datetime(df_temp[date_col], errors='coerce')
-    df_temp = df_temp.dropna(subset=[date_col])
+    df_temp[DATE_COLUMN] = pd.to_datetime(df_temp[DATE_COLUMN], errors='coerce', dayfirst=True)
+    df_temp = df_temp.dropna(subset=[DATE_COLUMN])
     
     if len(df_temp) == 0:
-        return "N/A", "Sem dados válidos", "metric-info", ""
+        st.warning("⚠️ Nenhuma data válida encontrada na coluna 'Carimbo de data/hora'")
+        return "N/A", "Sem datas válidas", "metric-info", ""
     
-    # Calcular períodos
+    # Debug inicial
+    st.info(f"📊 **Analisando:** {column_name} | **Total de registros:** {len(df_temp)} | **Período:** {df_temp[DATE_COLUMN].min().strftime('%d/%m/%Y')} até {df_temp[DATE_COLUMN].max().strftime('%d/%m/%Y')}")
+    
+    # Calcular períodos de 30 dias
     hoje = datetime.now()
     inicio_atual = hoje - timedelta(days=30)
     inicio_anterior = hoje - timedelta(days=60)
     fim_anterior = hoje - timedelta(days=30)
     
-    # Filtrar dados
-    dados_atual = df_temp[(df_temp[date_col] >= inicio_atual) & (df_temp[date_col] <= hoje)]
-    dados_anterior = df_temp[(df_temp[date_col] >= inicio_anterior) & (df_temp[date_col] < fim_anterior)]
+    # Filtrar dados por período
+    dados_atual = df_temp[(df_temp[DATE_COLUMN] >= inicio_atual) & (df_temp[DATE_COLUMN] <= hoje)]
+    dados_anterior = df_temp[(df_temp[DATE_COLUMN] >= inicio_anterior) & (df_temp[DATE_COLUMN] < fim_anterior)]
     
-    # Calcular métricas atuais
     respostas_atual = dados_atual[column_name].dropna()
     respostas_anterior = dados_anterior[column_name].dropna()
     
-    if len(respostas_atual) == 0:
-        return "N/A", "Sem dados últimos 30d", "metric-info", ""
+    st.info(f"📅 **Últimos 30 dias:** {len(respostas_atual)} respostas | **30-60 dias atrás:** {len(respostas_anterior)} respostas")
     
-    # Calcular valores
+    if len(respostas_atual) == 0:
+        return "N/A", "Sem dados nos últimos 30 dias", "metric-warning", ""
+    
     if is_nps:
-        # NPS atual
+        # === CÁLCULO NPS ===
         categorias_atual = respostas_atual.apply(categorize_nps_from_text)
         promotores_atual = (categorias_atual == 'Promotor').sum()
+        neutros_atual = (categorias_atual == 'Neutro').sum()
         detratores_atual = (categorias_atual == 'Detrator').sum()
-        total_validas_atual = len(categorias_atual[categorias_atual.isin(['Promotor', 'Neutro', 'Detrator'])])
+        indefinidos_atual = (categorias_atual == 'Indefinido').sum()
+        total_validas_atual = promotores_atual + neutros_atual + detratores_atual
+        
+        # Debug expandível
+        with st.expander("🔍 Debug NPS - Clique para ver detalhes da categorização"):
+            st.write("**📊 Período Atual (últimos 30 dias):**")
+            st.write(f"- ✅ **Promotores (9-10):** {promotores_atual}")
+            st.write(f"- ➡️ **Neutros (7-8):** {neutros_atual}")
+            st.write(f"- ❌ **Detratores (0-6):** {detratores_atual}")
+            st.write(f"- ❓ **Indefinidos:** {indefinidos_atual}")
+            st.write(f"- 📊 **Total válidas:** {total_validas_atual}")
+            
+            if total_validas_atual > 0:
+                nps_atual = ((promotores_atual - detratores_atual) / total_validas_atual * 100)
+                st.write(f"- 🎯 **NPS Calculado:** {nps_atual:.1f}% = ({promotores_atual} - {detratores_atual}) / {total_validas_atual} * 100")
+            
+            # Mostrar algumas respostas para debug
+            st.write("**🔍 Amostra das respostas atuais:**")
+            amostra = respostas_atual.head(10).tolist()
+            for i, resp in enumerate(amostra, 1):
+                categoria = categorize_nps_from_text(resp)
+                emoji = "✅" if categoria == "Promotor" else "➡️" if categoria == "Neutro" else "❌" if categoria == "Detrator" else "❓"
+                st.write(f"  {i}. `{resp}` → {emoji} {categoria}")
+            
+            # Período anterior
+            if len(respostas_anterior) > 0:
+                categorias_anterior = respostas_anterior.apply(categorize_nps_from_text)
+                promotores_anterior = (categorias_anterior == 'Promotor').sum()
+                neutros_anterior = (categorias_anterior == 'Neutro').sum()
+                detratores_anterior = (categorias_anterior == 'Detrator').sum()
+                total_validas_anterior = promotores_anterior + neutros_anterior + detratores_anterior
+                
+                st.write("**📉 Período Anterior (30-60 dias atrás):**")
+                st.write(f"- ✅ Promotores: {promotores_anterior} | ➡️ Neutros: {neutros_anterior} | ❌ Detratores: {detratores_anterior}")
+                
+                if total_validas_anterior > 0:
+                    nps_anterior = ((promotores_anterior - detratores_anterior) / total_validas_anterior * 100)
+                    st.write(f"- 🎯 **NPS Anterior:** {nps_anterior:.1f}%")
+                    st.write(f"- 📈 **Diferença:** {(nps_atual - nps_anterior):+.1f} pontos")
         
         if total_validas_atual == 0:
-            return "N/A", "Sem dados válidos", "metric-info", ""
+            return "N/A", "Sem respostas válidas para NPS", "metric-warning", ""
             
         valor_atual = ((promotores_atual - detratores_atual) / total_validas_atual * 100)
         
-        # NPS anterior (se houver dados)
+        # Comparar com período anterior
         if len(respostas_anterior) > 0:
             categorias_anterior = respostas_anterior.apply(categorize_nps_from_text)
             promotores_anterior = (categorias_anterior == 'Promotor').sum()
             detratores_anterior = (categorias_anterior == 'Detrator').sum()
-            total_validas_anterior = len(categorias_anterior[categorias_anterior.isin(['Promotor', 'Neutro', 'Detrator'])])
+            neutros_anterior = (categorias_anterior == 'Neutro').sum()
+            total_validas_anterior = promotores_anterior + neutros_anterior + detratores_anterior
             
             if total_validas_anterior > 0:
                 valor_anterior = ((promotores_anterior - detratores_anterior) / total_validas_anterior * 100)
@@ -855,32 +687,44 @@ def calculate_satisfaction_with_comparison(df_satisfacao, column_name, is_nps=Fa
                     color_class = "metric-success"
                 elif diferenca < -5:
                     trend = f"↘️ {diferenca:.0f} pts vs período anterior"
-                    color_class = "metric-danger" 
+                    color_class = "metric-danger"
                 else:
                     trend = f"➡️ {diferenca:+.0f} pts vs período anterior"
-                    color_class = "metric-warning" if valor_atual < 50 else "metric-success"
+                    color_class = "metric-success" if valor_atual >= 50 else "metric-warning" if valor_atual >= 0 else "metric-danger"
             else:
-                trend = f"{total_validas_atual} avaliações (sem dados anteriores)"
+                trend = f"{total_validas_atual} avaliações (sem dados anteriores válidos)"
                 color_class = "metric-success" if valor_atual >= 50 else "metric-warning" if valor_atual >= 0 else "metric-danger"
         else:
-            trend = f"{total_validas_atual} avaliações (sem dados anteriores)" 
+            trend = f"{total_validas_atual} avaliações (sem período anterior)"
             color_class = "metric-success" if valor_atual >= 50 else "metric-warning" if valor_atual >= 0 else "metric-danger"
             
         return f"{valor_atual:.0f}", trend, color_class, ""
     
     else:
-        # Métricas normais (produto, atendimento, prazo)
+        # === OUTRAS MÉTRICAS (Atendimento, Produto, Prazo) ===
         scores_atual = respostas_atual.apply(convert_text_score_to_number).dropna()
         
+        with st.expander(f"🔍 Debug {column_name} - Clique para ver detalhes"):
+            st.write(f"**📊 Respostas atuais:** {len(respostas_atual)}")
+            st.write(f"**📊 Scores convertidos:** {len(scores_atual)}")
+            if len(scores_atual) > 0:
+                st.write(f"**📊 Média atual:** {scores_atual.mean():.1f}")
+            
+            # Amostra das conversões
+            st.write("**🔍 Amostra das conversões:**")
+            amostra = respostas_atual.head(10)
+            for i, resp in enumerate(amostra, 1):
+                score = convert_text_score_to_number(resp)
+                st.write(f"  {i}. `{resp}` → {score}")
+        
         if len(scores_atual) == 0:
-            return "N/A", "Erro na conversão", "metric-info", ""
+            return "N/A", "Erro na conversão de scores", "metric-warning", ""
             
         valor_atual = scores_atual.mean()
         
-        # Calcular período anterior se houver dados
+        # Comparar com período anterior
         if len(respostas_anterior) > 0:
             scores_anterior = respostas_anterior.apply(convert_text_score_to_number).dropna()
-            
             if len(scores_anterior) > 0:
                 valor_anterior = scores_anterior.mean()
                 diferenca = valor_atual - valor_anterior
@@ -895,10 +739,10 @@ def calculate_satisfaction_with_comparison(df_satisfacao, column_name, is_nps=Fa
                     trend = f"➡️ {diferenca:+.1f} vs período anterior"
                     color_class = "metric-success" if valor_atual >= 8 else "metric-warning" if valor_atual >= 6 else "metric-danger"
             else:
-                trend = f"{len(respostas_atual)} avaliações (sem dados anteriores)"
+                trend = f"{len(respostas_atual)} avaliações (erro conversão anterior)"
                 color_class = "metric-success" if valor_atual >= 8 else "metric-warning" if valor_atual >= 6 else "metric-danger"
         else:
-            trend = f"{len(respostas_atual)} avaliações (sem dados anteriores)"
+            trend = f"{len(respostas_atual)} avaliações (sem período anterior)"
             color_class = "metric-success" if valor_atual >= 8 else "metric-warning" if valor_atual >= 6 else "metric-danger"
             
         return f"{valor_atual:.1f}/10", trend, color_class, ""
@@ -1141,14 +985,6 @@ def main():
             help="Período em dias para análise de tendências"
         )
         
-        # Novo filtro para avaliações Google
-        google_review_days = st.selectbox(
-            "⭐ Período Google Reviews",
-            [7, 15, 30, 60, 90],
-            index=2,
-            help="Período em dias para carregar avaliações do Google"
-        )
-        
         team_filter = st.selectbox(
             "👥 Membro da equipe",
             ["Todos", "Maria (Gerente)", "Ana (SAC)", "João (SAC)", "Pedro (SAC)"],
@@ -1159,27 +995,6 @@ def main():
         st.markdown("### ⚡ Filtros Rápidos")
         show_only_critical = st.checkbox("🚨 Apenas críticos", help="Mostrar apenas clientes com alta prioridade")
         show_only_premium = st.checkbox("👑 Apenas Premium/Gold", help="Focar em clientes de alto valor")
-        
-        st.markdown("---")
-        
-        # Configuração Google Reviews
-        st.markdown("### ⭐ Google Reviews")
-        if not os.path.exists(GOOGLE_CREDENTIALS_FILE):
-            st.warning("🔑 Credenciais Google não configuradas")
-            with st.expander("📋 Como configurar"):
-                st.markdown("""
-                **Passos para ativar Google Reviews:**
-                1. Acesse [Google Cloud Console](https://console.cloud.google.com/)
-                2. Crie projeto "Papello-Dashboard"
-                3. Ative "Google My Business API"
-                4. Crie credenciais Service Account
-                5. Baixe arquivo JSON como "papello-credentials.json"
-                6. Coloque na pasta do dashboard
-                
-                **Empresa:** Papello embalagens
-                """)
-        else:
-            st.success("✅ Google Reviews configurado")
         
         st.markdown("---")
         
@@ -1216,7 +1031,7 @@ def main():
     ])
     
     with tab1:
-        show_executive_dashboard(df_clientes, df_pedidos, df_satisfacao, actions_log, google_review_days)
+        show_executive_dashboard(df_clientes, df_pedidos, df_satisfacao, actions_log)
     
     with tab2:
         show_client_management_enhanced(df_clientes, actions_log)
@@ -1229,7 +1044,7 @@ def main():
 
 # === PÁGINAS DO DASHBOARD ===
 
-def show_executive_dashboard(df_clientes, df_pedidos, df_satisfacao, actions_log, google_review_days=30):
+def show_executive_dashboard(df_clientes, df_pedidos, df_satisfacao, actions_log):
     """Dashboard executivo moderno com explicações"""
     
     # KPIs principais em cards modernos
@@ -1497,178 +1312,77 @@ def show_executive_dashboard(df_clientes, df_pedidos, df_satisfacao, actions_log
     # Avaliação do Cliente (Últimos 30 dias vs período anterior)
     st.markdown('<div class="section-header"><span class="emoji">😊</span><h2>Avaliação do Cliente (Últimos 30 dias)</h2></div>', unsafe_allow_html=True)
     
-    # Carregar avaliações do Google
-    with st.spinner("🔄 Carregando avaliações do Google..."):
-        df_google_reviews = get_google_reviews_api(google_review_days)
-        google_metrics = calculate_google_reviews_metrics(df_google_reviews)
-    
-    # Primeira linha: Avaliações Google (destaque especial)
-    col1, col2, col3, col4 = st.columns(4)
-    
-    with col1:
-        nota_media = google_metrics['nota_media']
-        total_reviews = google_metrics['total_avaliacoes']
-        color_class = "metric-success" if nota_media >= 4.0 else "metric-warning" if nota_media >= 3.0 else "metric-danger"
-        
-        tendencia_emoji = "📈" if google_metrics['tendencia'] == 'up' else "📉" if google_metrics['tendencia'] == 'down' else "➡️"
-        
-        st.markdown(create_metric_card_with_explanation(
-            "⭐ Google Reviews",
-            f"{nota_media:.1f}/5.0",
-            f"{tendencia_emoji} {total_reviews} avaliações",
-            color_class,
-            f"Nota média das avaliações no Google. {google_metrics['avaliacoes_mes']} novas este mês."
-        ), unsafe_allow_html=True)
-    
-    with col2:
-        taxa_resposta = google_metrics['taxa_resposta']
-        color_class = "metric-success" if taxa_resposta >= 80 else "metric-warning" if taxa_resposta >= 50 else "metric-danger"
-        
-        st.markdown(create_metric_card_with_explanation(
-            "💬 Taxa de Resposta",
-            f"{taxa_resposta:.1f}%",
-            "Google Reviews",
-            color_class,
-            "Percentual de avaliações respondidas pela empresa no Google"
-        ), unsafe_allow_html=True)
-    
-    # Segunda linha: Pesquisas internas de satisfação
+    # Pesquisas internas de satisfação
     if df_satisfacao.empty:
-        with col3:
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
             st.markdown(create_metric_card_with_explanation(
                 "🎧 Atendimento", "N/A", "Sem dados", "metric-info", "Dados de pesquisa interna não disponíveis"
+            ), unsafe_allow_html=True)
+        with col2:
+            st.markdown(create_metric_card_with_explanation(
+                "📦 Produto", "N/A", "Sem dados", "metric-info", "Dados de pesquisa interna não disponíveis"
+            ), unsafe_allow_html=True)
+        with col3:
+            st.markdown(create_metric_card_with_explanation(
+                "⏰ Prazo", "N/A", "Sem dados", "metric-info", "Dados de pesquisa interna não disponíveis"
             ), unsafe_allow_html=True)
         with col4:
             st.markdown(create_metric_card_with_explanation(
                 "📈 NPS Interno", "N/A", "Sem dados", "metric-info", "Dados de NPS interno não disponíveis"
             ), unsafe_allow_html=True)
     else:
-        # Identificar colunas das pesquisas
-        atendimento_cols = [col for col in df_satisfacao.columns if 'atendimento' in col.lower()]
-        nps_cols = [col for col in df_satisfacao.columns if any(x in col.lower() for x in ['possibilidade', 'recomenda'])]
+        # Colunas fixas conhecidas da Papello
+        ATENDIMENTO_COLUMN = "Atendimento"
+        NPS_COLUMN = "Possibilidade de recomendação"
+        PRODUTO_COLUMN = "Produto"
+        PRAZO_COLUMN = "Prazo"
         
-        with col3:
-            if atendimento_cols:
-                value, delta, color, _ = calculate_satisfaction_with_comparison(df_satisfacao, atendimento_cols[0], False)
+        col1, col2, col3, col4 = st.columns(4)
+        
+        with col1:
+            if ATENDIMENTO_COLUMN in df_satisfacao.columns:
+                value, delta, color, _ = calculate_satisfaction_with_comparison(df_satisfacao, ATENDIMENTO_COLUMN, False)
                 st.markdown(create_metric_card_with_explanation(
-                    "🎧 Atendimento", value, delta, color, "Avaliação da qualidade do atendimento (pesquisa interna)"
+                    "🎧 Atendimento", value, delta, color, "Avaliação da qualidade do atendimento (últimos 30 dias)"
                 ), unsafe_allow_html=True)
             else:
                 st.markdown(create_metric_card_with_explanation(
-                    "🎧 Atendimento", "N/A", "Coluna não encontrada", "metric-info", "Dados de atendimento não disponíveis"
+                    "🎧 Atendimento", "N/A", "Coluna não encontrada", "metric-info", f"Procurando por: '{ATENDIMENTO_COLUMN}'"
+                ), unsafe_allow_html=True)
+        
+        with col2:
+            if PRODUTO_COLUMN in df_satisfacao.columns:
+                value, delta, color, _ = calculate_satisfaction_with_comparison(df_satisfacao, PRODUTO_COLUMN, False)
+                st.markdown(create_metric_card_with_explanation(
+                    "📦 Produto", value, delta, color, "Qualidade dos produtos/embalagens"
+                ), unsafe_allow_html=True)
+            else:
+                st.markdown(create_metric_card_with_explanation(
+                    "📦 Produto", "N/A", "Coluna não encontrada", "metric-info", f"Procurando por: '{PRODUTO_COLUMN}'"
+                ), unsafe_allow_html=True)
+        
+        with col3:
+            if PRAZO_COLUMN in df_satisfacao.columns:
+                value, delta, color, _ = calculate_satisfaction_with_comparison(df_satisfacao, PRAZO_COLUMN, False)
+                st.markdown(create_metric_card_with_explanation(
+                    "⏰ Prazo", value, delta, color, "Cumprimento de prazos de entrega"
+                ), unsafe_allow_html=True)
+            else:
+                st.markdown(create_metric_card_with_explanation(
+                    "⏰ Prazo", "N/A", "Coluna não encontrada", "metric-info", f"Procurando por: '{PRAZO_COLUMN}'"
                 ), unsafe_allow_html=True)
         
         with col4:
-            if nps_cols:
-                value, delta, color, _ = calculate_satisfaction_with_comparison(df_satisfacao, nps_cols[0], True)
+            if NPS_COLUMN in df_satisfacao.columns:
+                value, delta, color, _ = calculate_satisfaction_with_comparison(df_satisfacao, NPS_COLUMN, True)
                 st.markdown(create_metric_card_with_explanation(
-                    "📈 NPS Interno", value, delta, color, "Net Promoter Score da pesquisa interna"
+                    "📈 NPS Interno", value, delta, color, "Net Promoter Score (últimos 30 dias vs anterior)"
                 ), unsafe_allow_html=True)
             else:
                 st.markdown(create_metric_card_with_explanation(
-                    "📈 NPS Interno", "N/A", "Coluna não encontrada", "metric-info", "Dados de NPS não disponíveis"
+                    "📈 NPS Interno", "N/A", "Coluna não encontrada", "metric-info", f"Procurando por: '{NPS_COLUMN}'"
                 ), unsafe_allow_html=True)
-    
-    # Gráficos das avaliações Google
-    if not df_google_reviews.empty:
-        st.markdown('<div class="section-header"><span class="emoji">⭐</span><h2>Análise Detalhada - Google Reviews</h2></div>', unsafe_allow_html=True)
-        
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            # Distribuição de notas
-            distribuicao = google_metrics['distribuicao_notas']
-            if distribuicao:
-                labels = list(distribuicao.keys())
-                values = list(distribuicao.values())
-                
-                fig_google = px.bar(
-                    x=labels,
-                    y=values,
-                    title="Distribuição de Notas - Google Reviews",
-                    color=values,
-                    color_continuous_scale=["#ef4444", "#f59e0b", "#eab308", "#84cc16", "#22c55e"]
-                )
-                
-                fig_google.update_layout(
-                    font=dict(family="Inter", size=12),
-                    height=300,
-                    margin=dict(t=50, b=0, l=0, r=0),
-                    showlegend=False,
-                    xaxis_title="Avaliação",
-                    yaxis_title="Quantidade"
-                )
-                
-                fig_google.update_traces(
-                    hovertemplate='<b>%{x}</b><br>%{y} avaliações<extra></extra>'
-                )
-                
-                st.plotly_chart(fig_google, use_container_width=True)
-        
-        with col2:
-            # Evolução temporal das avaliações
-            df_google_reviews['data_avaliacao'] = pd.to_datetime(df_google_reviews['data_avaliacao'])
-            df_grouped = df_google_reviews.groupby(df_google_reviews['data_avaliacao'].dt.date).agg({
-                'nota': 'mean'
-            }).reset_index()
-            
-            if len(df_grouped) > 1:
-                fig_evolucao = px.line(
-                    df_grouped,
-                    x='data_avaliacao',
-                    y='nota',
-                    title="Evolução da Nota Média - Google Reviews",
-                    line_shape='spline'
-                )
-                
-                fig_evolucao.update_traces(
-                    line=dict(color=COLORS['primary'], width=3),
-                    hovertemplate='<b>%{x}</b><br>Nota média: %{y:.1f}<extra></extra>'
-                )
-                
-                fig_evolucao.update_layout(
-                    font=dict(family="Inter", size=12),
-                    height=300,
-                    margin=dict(t=50, b=0, l=0, r=0),
-                    yaxis=dict(range=[1, 5], title="Nota Média"),
-                    xaxis_title="Data"
-                )
-                
-                st.plotly_chart(fig_evolucao, use_container_width=True)
-            else:
-                st.info("📊 Aguardando mais dados para mostrar evolução temporal...")
-        
-        # Últimas avaliações
-        st.markdown("### 💬 Últimas Avaliações Google")
-        
-        df_recentes = df_google_reviews.sort_values('data_avaliacao', ascending=False).head(5)
-        
-        for _, review in df_recentes.iterrows():
-            data_formatada = pd.to_datetime(review['data_avaliacao']).strftime('%d/%m/%Y')
-            estrelas = "⭐" * int(review['nota'])
-            
-            col1, col2, col3 = st.columns([2, 3, 1])
-            
-            with col1:
-                st.markdown(f"**{review['nome_cliente']}**")
-                st.markdown(f"{estrelas} ({review['nota']}/5)")
-                st.markdown(f"📅 {data_formatada}")
-            
-            with col2:
-                st.markdown(f"💭 *\"{review['comentario']}\"*")
-                if review['resposta_empresa']:
-                    st.markdown(f"📞 **Papello:** {review['resposta_empresa']}")
-            
-            with col3:
-                status_resposta = "✅ Respondida" if review['respondida'] == 'Sim' else "⏳ Pendente"
-                color = "success" if review['respondida'] == 'Sim' else "warning"
-                st.markdown(f"**Status:** {status_resposta}")
-                
-                if review['respondida'] == 'Não':
-                    if st.button("💬 Responder", key=f"respond_{review['nome_cliente']}_{data_formatada}"):
-                        st.info("🚧 Funcionalidade de resposta em desenvolvimento")
-            
-            st.markdown("---")
     
     # Distribuição visual moderna
     col1, col2 = st.columns(2)
@@ -2224,6 +1938,7 @@ def show_actions_center_enhanced(df_clientes, actions_log, team_filter):
             
             with col3:
                 st.markdown(f"👨‍💼 {action['executado_por']}")
+
 
 if __name__ == "__main__":
     main()
