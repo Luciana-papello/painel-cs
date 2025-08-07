@@ -1324,10 +1324,48 @@ def show_executive_dashboard(df_clientes, df_pedidos, df_satisfacao, actions_log
             "Atrasados para próxima compra (>2x intervalo normal)"
         ), unsafe_allow_html=True)
     
-    # Avaliação do Cliente (Últimos 30 dias vs período anterior)
-    st.markdown('<div class="section-header"><span class="emoji">😊</span><h2>Avaliação do Cliente (Últimos 30 dias)</h2></div>', unsafe_allow_html=True)
+    # === AVALIAÇÃO DO CLIENTE COM FILTROS PERSONALIZADOS ===
+    st.markdown('<div class="section-header"><span class="emoji">😊</span><h2>Avaliação do Cliente</h2></div>', unsafe_allow_html=True)
     
-    # Pesquisas internas de satisfação
+    # === FILTROS DE DATA PERSONALIZADOS ===
+    with st.container():
+        st.markdown("### 📅 Configurar Período de Análise")
+        
+        col1, col2, col3, col4 = st.columns([2, 2, 2, 1])
+        
+        with col1:
+            usar_periodo_custom = st.checkbox("🔧 Personalizar período", help="Marque para definir datas específicas")
+        
+        if usar_periodo_custom:
+            with col2:
+                data_inicio_custom = st.date_input(
+                    "📅 Data inicial",
+                    value=datetime.now() - timedelta(days=30),
+                    format="DD/MM/YYYY",
+                    help="Data inicial para análise"
+                )
+            
+            with col3:
+                data_fim_custom = st.date_input(
+                    "📅 Data final", 
+                    value=datetime.now(),
+                    format="DD/MM/YYYY",
+                    help="Data final para análise"
+                )
+                
+            with col4:
+                if st.button("🔍 Aplicar", type="primary"):
+                    st.cache_data.clear()
+        else:
+            # Período padrão (últimos 30 dias)
+            data_fim_custom = datetime.now()
+            data_inicio_custom = data_fim_custom - timedelta(days=30)
+        
+        # Mostrar período selecionado
+        periodo_dias = (data_fim_custom - data_inicio_custom).days
+        st.info(f"📊 **Período selecionado:** {data_inicio_custom.strftime('%d/%m/%Y')} até {data_fim_custom.strftime('%d/%m/%Y')} ({periodo_dias} dias)")
+    
+    # === PESQUISAS INTERNAS DE SATISFAÇÃO COM PERÍODO PERSONALIZADO ===
     if df_satisfacao.empty:
         col1, col2, col3, col4 = st.columns(4)
         with col1:
@@ -1344,82 +1382,81 @@ def show_executive_dashboard(df_clientes, df_pedidos, df_satisfacao, actions_log
             ), unsafe_allow_html=True)
         with col4:
             st.markdown(create_metric_card_with_explanation(
-                "📈 NPS Interno", "N/A", "Sem dados", "metric-info", "Dados de NPS interno não disponíveis"
+                "📈 NPS", "N/A", "Sem dados", "metric-info", "Dados de NPS não disponíveis"
             ), unsafe_allow_html=True)
     else:
-        # === DEBUG: MOSTRAR COLUNAS DISPONÍVEIS ===
-     with st.expander("🔍 Debug - Colunas Disponíveis na Planilha"):
-        st.write("**Colunas encontradas:**")
-        for i, col in enumerate(df_satisfacao.columns, 1):
-            st.write(f"{i}. `{col}` (tipo: {df_satisfacao[col].dtype})")
-        st.write(f"**Total de registros:** {len(df_satisfacao)}")
-    
-    # === BUSCA FLEXÍVEL DAS COLUNAS ===
-     atendimento_col = None
-     produto_col = None  
-     prazo_col = None
-     nps_col = None
-    
-    # Buscar por padrões nas colunas
-     for col in df_satisfacao.columns:
-        col_lower = col.lower()
-        if 'atendimento' in col_lower and not atendimento_col:
-            atendimento_col = col
-        elif 'produto' in col_lower and not produto_col:
-            produto_col = col
-        elif 'prazo' in col_lower and not prazo_col:
-            prazo_col = col
-        elif any(x in col_lower for x in ['possibilidade', 'recomenda']) and not nps_col:
-            nps_col = col
-    
-    # Mostrar resultados da busca
-     st.info(f"🔍 **Colunas encontradas:** Atendimento=`{atendimento_col}` | Produto=`{produto_col}` | Prazo=`{prazo_col}` | NPS=`{nps_col}`")
-    
-     col1, col2, col3, col4 = st.columns(4)
-    
-     with col1:
-        if atendimento_col:
-            value, delta, color, _ = calculate_satisfaction_with_comparison(df_satisfacao, atendimento_col, False)
-            st.markdown(create_metric_card_with_explanation(
-                "🎧 Atendimento", value, delta, color, "Avaliação da qualidade do atendimento"
-            ), unsafe_allow_html=True)
-        else:
-            st.markdown(create_metric_card_with_explanation(
-                "🎧 Atendimento", "N/A", "Coluna não encontrada", "metric-info", "Nenhuma coluna com 'atendimento' encontrada"
-            ), unsafe_allow_html=True)
-    
-     with col2:
-        if produto_col:
-            value, delta, color, _ = calculate_satisfaction_with_comparison(df_satisfacao, produto_col, False)
-            st.markdown(create_metric_card_with_explanation(
-                "📦 Produto", value, delta, color, "Qualidade dos produtos"
-            ), unsafe_allow_html=True)
-        else:
-            st.markdown(create_metric_card_with_explanation(
-                "📦 Produto", "N/A", "Coluna não encontrada", "metric-info", "Nenhuma coluna com 'produto' encontrada"
-            ), unsafe_allow_html=True)
-    
-     with col3:
-        if prazo_col:
-            value, delta, color, _ = calculate_satisfaction_with_comparison(df_satisfacao, prazo_col, False)
-            st.markdown(create_metric_card_with_explanation(
-                "⏰ Prazo", value, delta, color, "Cumprimento de prazos"
-            ), unsafe_allow_html=True)
-        else:
-            st.markdown(create_metric_card_with_explanation(
-                "⏰ Prazo", "N/A", "Coluna não encontrada", "metric-info", "Nenhuma coluna com 'prazo' encontrada"
-            ), unsafe_allow_html=True)
-    
-     with col4:
-        if nps_col:
-            value, delta, color, _ = calculate_satisfaction_with_comparison(df_satisfacao, nps_col, True)
-            st.markdown(create_metric_card_with_explanation(
-                "📈 NPS Interno", value, delta, color, "Net Promoter Score interno"
-            ), unsafe_allow_html=True)
-        else:
-            st.markdown(create_metric_card_with_explanation(
-                "📈 NPS Interno", "N/A", "Coluna não encontrada", "metric-info", "Nenhuma coluna de NPS encontrada"
-            ), unsafe_allow_html=True)
+        # Debug das colunas (pode ser removido depois)
+        with st.expander("🔍 Debug - Colunas Disponíveis"):
+            for i, col in enumerate(df_satisfacao.columns, 1):
+                st.write(f"{i}. `{col}`")
+        
+        # Buscar colunas automaticamente
+        atendimento_col = produto_col = prazo_col = nps_col = None
+        
+        for col in df_satisfacao.columns:
+            col_lower = col.lower()
+            if 'atendimento' in col_lower and not atendimento_col:
+                atendimento_col = col
+            elif 'produto' in col_lower and not produto_col:
+                produto_col = col
+            elif 'prazo' in col_lower and not prazo_col:
+                prazo_col = col
+            elif any(x in col_lower for x in ['possibilidade', 'recomenda']) and not nps_col:
+                nps_col = col
+        
+        col1, col2, col3, col4 = st.columns(4)
+        
+        with col1:
+            if atendimento_col:
+                value, delta, color, _ = calculate_satisfaction_with_comparison_enhanced(
+                    df_satisfacao, atendimento_col, False, data_inicio_custom, data_fim_custom
+                )
+                st.markdown(create_metric_card_with_explanation(
+                    "🎧 Atendimento", value, delta, color, f"Avaliação do atendimento ({periodo_dias} dias)"
+                ), unsafe_allow_html=True)
+            else:
+                st.markdown(create_metric_card_with_explanation(
+                    "🎧 Atendimento", "N/A", "Coluna não encontrada", "metric-info", ""
+                ), unsafe_allow_html=True)
+        
+        with col2:
+            if produto_col:
+                value, delta, color, _ = calculate_satisfaction_with_comparison_enhanced(
+                    df_satisfacao, produto_col, False, data_inicio_custom, data_fim_custom
+                )
+                st.markdown(create_metric_card_with_explanation(
+                    "📦 Produto", value, delta, color, f"Avaliação do produto ({periodo_dias} dias)"
+                ), unsafe_allow_html=True)
+            else:
+                st.markdown(create_metric_card_with_explanation(
+                    "📦 Produto", "N/A", "Coluna não encontrada", "metric-info", ""
+                ), unsafe_allow_html=True)
+        
+        with col3:
+            if prazo_col:
+                value, delta, color, _ = calculate_satisfaction_with_comparison_enhanced(
+                    df_satisfacao, prazo_col, False, data_inicio_custom, data_fim_custom
+                )
+                st.markdown(create_metric_card_with_explanation(
+                    "⏰ Prazo", value, delta, color, f"Avaliação do prazo ({periodo_dias} dias)"
+                ), unsafe_allow_html=True)
+            else:
+                st.markdown(create_metric_card_with_explanation(
+                    "⏰ Prazo", "N/A", "Coluna não encontrada", "metric-info", ""
+                ), unsafe_allow_html=True)
+        
+        with col4:
+            if nps_col:
+                value, delta, color, _ = calculate_satisfaction_with_comparison_enhanced(
+                    df_satisfacao, nps_col, True, data_inicio_custom, data_fim_custom
+                )
+                st.markdown(create_metric_card_with_explanation(
+                    "📈 NPS", value, delta, color, f"Net Promoter Score ({periodo_dias} dias)"
+                ), unsafe_allow_html=True)
+            else:
+                st.markdown(create_metric_card_with_explanation(
+                    "📈 NPS", "N/A", "Coluna não encontrada", "metric-info", ""
+                ), unsafe_allow_html=True)
     
     # Alertas críticos modernos
     st.markdown('<div class="section-header"><span class="emoji">🚨</span><h2>Alertas Críticos</h2></div>', unsafe_allow_html=True)
@@ -1437,7 +1474,254 @@ def show_executive_dashboard(df_clientes, df_pedidos, df_satisfacao, actions_log
                 st.markdown(create_alert_card(cliente, cliente['priority_score']), unsafe_allow_html=True)
     else:
         st.success("🎉 Nenhum alerta crítico no momento! Todos os clientes estão bem atendidos.")
-
+def calculate_satisfaction_with_comparison_enhanced(df_satisfacao, column_name, is_nps=False, data_inicio=None, data_fim=None):
+    """Calcula satisfação com períodos personalizados e explicações didáticas"""
+    if df_satisfacao.empty:
+        return "N/A", "Sem dados", "metric-info", ""
+    
+    # Usar período padrão se não especificado
+    if not data_inicio or not data_fim:
+        data_fim = datetime.now()
+        data_inicio = data_fim - timedelta(days=30)
+    else:
+        # Converter para datetime se necessário
+        if hasattr(data_inicio, 'date'):
+            data_inicio = datetime.combine(data_inicio, datetime.min.time())
+        if hasattr(data_fim, 'date'):
+            data_fim = datetime.combine(data_fim, datetime.max.time())
+    
+    # Buscar coluna de data
+    date_column = None
+    for col in df_satisfacao.columns:
+        if any(x in col.lower() for x in ['carimbo', 'data', 'timestamp', 'time']):
+            date_column = col
+            break
+    
+    if not date_column or column_name not in df_satisfacao.columns:
+        return "N/A", "Coluna não encontrada", "metric-info", ""
+    
+    # === DEBUG ESSENCIAL (MENOS VERBOSO) ===
+    st.write(f"**📊 {column_name}:** {len(df_satisfacao)} registros → Período: {data_inicio.strftime('%d/%m')} a {data_fim.strftime('%d/%m')}")
+    
+    # Filtrar dados no período
+    df_valid = df_satisfacao.dropna(subset=[date_column])
+    dados_periodo = df_valid[
+        (df_valid[date_column] >= data_inicio) & 
+        (df_valid[date_column] <= data_fim)
+    ]
+    
+    respostas_periodo = dados_periodo[column_name].dropna()
+    st.write(f"→ **{len(respostas_periodo)} respostas válidas** no período")
+    
+    if len(respostas_periodo) == 0:
+        return "N/A", "Sem dados no período", "metric-warning", ""
+    
+    # === CALCULAR PERÍODO DE COMPARAÇÃO ===
+    periodo_dias = (data_fim - data_inicio).days
+    inicio_comparacao = data_inicio - timedelta(days=periodo_dias)
+    fim_comparacao = data_inicio
+    
+    dados_comparacao = df_valid[
+        (df_valid[date_column] >= inicio_comparacao) & 
+        (df_valid[date_column] < fim_comparacao)
+    ]
+    respostas_comparacao = dados_comparacao[column_name].dropna()
+    
+    if is_nps:
+        # === CÁLCULO NPS ===
+        categorias_periodo = respostas_periodo.apply(categorize_nps_from_text)
+        promotores = (categorias_periodo == 'Promotor').sum()
+        neutros = (categorias_periodo == 'Neutro').sum()
+        detratores = (categorias_periodo == 'Detrator').sum()
+        indefinidos = (categorias_periodo == 'Indefinido').sum()
+        total_validas = promotores + neutros + detratores
+        
+        if total_validas == 0:
+            return "N/A", "Sem respostas válidas para NPS", "metric-warning", ""
+            
+        nps_valor = ((promotores - detratores) / total_validas * 100)
+        
+        # === EXPLICAÇÃO DIDÁTICA COMPLETA DO NPS ===
+        with st.expander(f"🎯 Análise Completa do NPS ({data_inicio.strftime('%d/%m')} - {data_fim.strftime('%d/%m')})"):
+            st.markdown("### 📊 Categorização das Respostas")
+            
+            col1, col2, col3, col4 = st.columns(4)
+            with col1:
+                st.metric("✅ Promotores", f"{promotores}", help="Notas 9-10: Clientes entusiasmados")
+            with col2:
+                st.metric("➡️ Neutros", f"{neutros}", help="Notas 7-8: Clientes satisfeitos mas passivos")
+            with col3:
+                st.metric("❌ Detratores", f"{detratores}", help="Notas 0-6: Clientes insatisfeitos")
+            with col4:
+                st.metric("📊 Total Válidas", f"{total_validas}")
+            
+            st.markdown("---")
+            st.markdown("### 🧮 Cálculo do NPS")
+            st.markdown(f"""
+            **Fórmula:** `NPS = ((Promotores - Detratores) / Total Válidas) × 100`
+            
+            **Seu cálculo:**
+            ```
+            NPS = (({promotores} - {detratores}) / {total_validas}) × 100
+            NPS = ({promotores - detratores} / {total_validas}) × 100  
+            NPS = {(promotores - detratores) / total_validas:.3f} × 100
+            NPS = {nps_valor:.1f}
+            ```
+            """)
+            
+            st.markdown("---")
+            st.markdown("### 📈 Interpretação do Resultado")
+            
+            # Classificação do NPS
+            if nps_valor >= 75:
+                classificacao = "🏆 **EXCELENTE**"
+                cor = "success"
+                explicacao = "NPS excepcional! Seus clientes são verdadeiros defensores da marca."
+            elif nps_valor >= 50:
+                classificacao = "🌟 **MUITO BOM**"
+                cor = "success"
+                explicacao = "NPS muito bom! Maioria dos clientes recomendaria sua empresa."
+            elif nps_valor >= 30:
+                classificacao = "✅ **BOM**"
+                cor = "info"
+                explicacao = "NPS na zona de qualidade. Há espaço para melhorias."
+            elif nps_valor >= 0:
+                classificacao = "⚠️ **PRECISA MELHORAR**"
+                cor = "warning"
+                explicacao = "NPS na zona de melhoria. Foque em reduzir detratores."
+            else:
+                classificacao = "🚨 **CRÍTICO**"
+                cor = "error"
+                explicacao = "NPS negativo indica mais detratores que promotores. Ação urgente!"
+            
+            if cor == "success":
+                st.success(f"{classificacao}: {nps_valor:.0f} - {explicacao}")
+            elif cor == "warning":
+                st.warning(f"{classificacao}: {nps_valor:.0f} - {explicacao}")
+            elif cor == "error":
+                st.error(f"{classificacao}: {nps_valor:.0f} - {explicacao}")
+            else:
+                st.info(f"{classificacao}: {nps_valor:.0f} - {explicacao}")
+            
+            # Benchmarking
+            st.markdown("### 🎯 Benchmarking")
+            benchmarks = {
+                "Média Global": 32,
+                "Média Brasil": 42,
+                "Empresas Top": 70,
+                "Classe Mundial": 80
+            }
+            
+            for nome, valor in benchmarks.items():
+                if nps_valor >= valor:
+                    st.success(f"✅ {nome}: {valor} (Você: {nps_valor:.0f})")
+                else:
+                    diferenca = valor - nps_valor
+                    st.info(f"🎯 {nome}: {valor} (Faltam {diferenca:.0f} pts)")
+            
+            # Amostra das respostas
+            st.markdown("### 🔍 Amostra das Respostas")
+            amostra = respostas_periodo.head(10).tolist()
+            for i, resp in enumerate(amostra, 1):
+                categoria = categorize_nps_from_text(resp)
+                if categoria == "Promotor":
+                    emoji, cor = "✅", "🟢"
+                elif categoria == "Neutro":
+                    emoji, cor = "➡️", "🟡"
+                elif categoria == "Detrator":
+                    emoji, cor = "❌", "🔴"
+                else:
+                    emoji, cor = "❓", "⚫"
+                st.write(f"{i:2d}. `{resp}` {emoji} {categoria} {cor}")
+            
+            # Distribuição por dia
+            if len(dados_periodo) > 0:
+                st.markdown("### 📅 Distribuição Temporal")
+                dados_tempo = dados_periodo.copy()
+                dados_tempo['data_dia'] = dados_tempo[date_column].dt.date
+                dist_diaria = dados_tempo.groupby('data_dia').size().reset_index()
+                dist_diaria.columns = ['Data', 'Avaliações']
+                dist_diaria = dist_diaria.sort_values('Data', ascending=False).head(10)
+                st.dataframe(dist_diaria, use_container_width=True)
+        
+        # Calcular comparação
+        if len(respostas_comparacao) > 0:
+            categorias_comparacao = respostas_comparacao.apply(categorize_nps_from_text)
+            promotores_comp = (categorias_comparacao == 'Promotor').sum()
+            detratores_comp = (categorias_comparacao == 'Detrator').sum()
+            neutros_comp = (categorias_comparacao == 'Neutro').sum()
+            total_validas_comp = promotores_comp + neutros_comp + detratores_comp
+            
+            if total_validas_comp > 0:
+                nps_comparacao = ((promotores_comp - detratores_comp) / total_validas_comp * 100)
+                diferenca = nps_valor - nps_comparacao
+                
+                if diferenca > 5:
+                    trend = f"↗️ +{diferenca:.0f} pts vs período anterior"
+                    color_class = "metric-success"
+                elif diferenca < -5:
+                    trend = f"↘️ {diferenca:.0f} pts vs período anterior"
+                    color_class = "metric-danger"
+                else:
+                    trend = f"➡️ {diferenca:+.0f} pts vs período anterior"
+                    color_class = "metric-success" if nps_valor >= 50 else "metric-warning" if nps_valor >= 0 else "metric-danger"
+            else:
+                trend = f"{total_validas} avaliações ({periodo_dias} dias)"
+                color_class = "metric-success" if nps_valor >= 50 else "metric-warning" if nps_valor >= 0 else "metric-danger"
+        else:
+            trend = f"{total_validas} avaliações ({periodo_dias} dias)"
+            color_class = "metric-success" if nps_valor >= 50 else "metric-warning" if nps_valor >= 0 else "metric-danger"
+            
+        return f"{nps_valor:.0f}", trend, color_class, ""
+    
+    else:
+        # === OUTRAS MÉTRICAS ===
+        scores = respostas_periodo.apply(convert_text_score_to_number).dropna()
+        
+        if len(scores) == 0:
+            return "N/A", "Erro na conversão", "metric-warning", ""
+            
+        valor = scores.mean()
+        
+        # Debug das outras métricas
+        with st.expander(f"🔍 Debug {column_name}"):
+            st.write(f"**📊 Conversões:** {len(scores)} de {len(respostas_periodo)}")
+            if len(scores) > 0:
+                st.write(f"**📊 Média:** {valor:.1f}/10")
+                
+                # Amostra das conversões
+                st.write("**🔍 Amostra:**")
+                amostra = respostas_periodo.head(8)
+                for i, resp in enumerate(amostra, 1):
+                    score = convert_text_score_to_number(resp)
+                    st.write(f"  {i}. `{resp}` → {score}")
+        
+        # Comparação
+        if len(respostas_comparacao) > 0:
+            scores_comp = respostas_comparacao.apply(convert_text_score_to_number).dropna()
+            if len(scores_comp) > 0:
+                valor_comp = scores_comp.mean()
+                diferenca = valor - valor_comp
+                
+                if diferenca > 0.3:
+                    trend = f"↗️ +{diferenca:.1f} vs anterior"
+                    color_class = "metric-success"
+                elif diferenca < -0.3:
+                    trend = f"↘️ {diferenca:.1f} vs anterior"
+                    color_class = "metric-danger"
+                else:
+                    trend = f"➡️ {diferenca:+.1f} vs anterior"
+                    color_class = "metric-success" if valor >= 8 else "metric-warning" if valor >= 6 else "metric-danger"
+            else:
+                trend = f"{len(respostas_periodo)} avaliações"
+                color_class = "metric-success" if valor >= 8 else "metric-warning" if valor >= 6 else "metric-danger"
+        else:
+            trend = f"{len(respostas_periodo)} avaliações"
+            color_class = "metric-success" if valor >= 8 else "metric-warning" if valor >= 6 else "metric-danger"
+            
+        return f"{valor:.1f}/10", trend, color_class, ""
+    
+    
 def show_client_management_enhanced(df_clientes, actions_log):
     """Gestão de clientes aprimorada"""
     
