@@ -1268,17 +1268,17 @@ def calculate_satisfaction_with_comparison_enhanced(df_satisfacao, column_name, 
         valor = scores.mean()
         
         # Debug das outras métricas
-        with st.expander(f"🔍 Debug {column_name}"):
-            st.write(f"**📊 Conversões:** {len(scores)} de {len(respostas_periodo)}")
-            if len(scores) > 0:
-                st.write(f"**📊 Média:** {valor:.1f}/10")
+        #with st.expander(f"🔍 Debug {column_name}"):
+            #st.write(f"**📊 Conversões:** {len(scores)} de {len(respostas_periodo)}")
+            #if len(scores) > 0:
+                #st.write(f"**📊 Média:** {valor:.1f}/10")
                 
                 # Amostra das conversões
-                st.write("**🔍 Amostra:**")
-                amostra = respostas_periodo.head(8)
-                for i, resp in enumerate(amostra, 1):
-                    score = convert_text_score_to_number(resp)
-                    st.write(f"  {i}. `{resp}` → {score}")
+                #st.write("**🔍 Amostra:**")
+                #amostra = respostas_periodo.head(8)
+                #for i, resp in enumerate(amostra, 1):
+                    #score = convert_text_score_to_number(resp)
+                    #st.write(f"  {i}. `{resp}` → {score}")
         
         # Comparação
         if len(respostas_comparacao) > 0:
@@ -1632,9 +1632,9 @@ def show_executive_dashboard(df_clientes, df_pedidos, df_satisfacao, actions_log
             ), unsafe_allow_html=True)
     else:
         # Debug das colunas (pode ser removido depois)
-        with st.expander("🔍 Debug - Colunas Disponíveis"):
-            for i, col in enumerate(df_satisfacao.columns, 1):
-                st.write(f"{i}. `{col}`")
+        #with st.expander("🔍 Debug - Colunas Disponíveis"):
+            #for i, col in enumerate(df_satisfacao.columns, 1):
+                #st.write(f"{i}. `{col}`")
         
         # Buscar colunas automaticamente
         atendimento_col = produto_col = prazo_col = nps_col = None
