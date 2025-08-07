@@ -474,22 +474,27 @@ def load_google_sheet_public(sheet_id, tab_name):
 
 @st.cache_data(ttl=300)
 def load_satisfaction_data():
-    """Carrega dados de pesquisa de satisfação - VERSÃO CORRIGIDA"""
+    """VERSÃO COM CORREÇÃO DE DATA BRASILEIRA"""
     try:
         url = f"https://docs.google.com/spreadsheets/d/{PESQUISA_SHEET_ID}/gviz/tq?tqx=out:csv"
         df = pd.read_csv(url)
+        df.columns = df.columns.str.strip()
         
-        # NÃO ALTERAR OS NOMES DAS COLUNAS - manter originais
-        df.columns = df.columns.str.strip()  # Apenas remover espaços extras
+        # === FORÇAR FORMATO BRASILEIRO ===
+        date_cols = [col for col in df.columns if any(x in col.lower() for x in ['carimbo', 'data', 'timestamp'])]
         
-        # Converter apenas colunas de data
-        date_cols = [col for col in df.columns if any(x in col.lower() for x in ['data', 'timestamp', 'carimbo'])]
         for col in date_cols:
-            df[col] = pd.to_datetime(df[col], errors='coerce')
+            # Forçar formato DD/MM/YYYY HH:MM:SS
+            df[col] = pd.to_datetime(df[col], format='%d/%m/%Y %H:%M:%S', errors='coerce')
+            
+            # Se ainda tem nulos, tentar sem horário
+            mask_null = df[col].isnull()
+            if mask_null.any():
+                df.loc[mask_null, col] = pd.to_datetime(df.loc[mask_null, col], format='%d/%m/%Y', errors='coerce')
         
         return df.copy()
     except Exception as e:
-        st.error(f"Erro ao carregar pesquisas de satisfação: {str(e)}")
+        st.error(f"Erro: {str(e)}")
         return pd.DataFrame()
 
 def calculate_priority_score(row):
@@ -574,146 +579,99 @@ def create_alert_card(cliente, priority_score):
     """
 
 def calculate_satisfaction_with_comparison(df_satisfacao, column_name, is_nps=False):
-    """Calcula satisfação dos últimos 30 dias - VERSÃO COM DEBUG COMPLETO"""
+    """Calcula satisfação dos últimos 30 dias - VERSÃO COM CORREÇÃO DE DATA"""
     if df_satisfacao.empty:
         return "N/A", "Sem dados", "metric-info", ""
     
-    # === DEBUG 1: VERIFICAR DADOS INICIAIS ===
-    st.write("**🔍 DEBUG COMPLETO - Rastreando onde estão os dados:**")
-    st.write(f"📊 **Total de registros carregados:** {len(df_satisfacao)}")
-    st.write(f"📋 **Colunas disponíveis:** {list(df_satisfacao.columns)}")
-    
-    # === DEBUG 2: ENCONTRAR COLUNA DE DATA ===
+    # Buscar coluna de data
     date_column = None
     for col in df_satisfacao.columns:
         if any(x in col.lower() for x in ['carimbo', 'data', 'timestamp', 'time']):
             date_column = col
-            st.write(f"✅ **Coluna de data encontrada:** `{date_column}`")
             break
     
-    if not date_column:
-        st.error("❌ Nenhuma coluna de data encontrada!")
-        return "N/A", "Coluna de data não encontrada", "metric-info", ""
-    
-    # === DEBUG 3: VERIFICAR COLUNA DE RESPOSTAS ===
-    if column_name not in df_satisfacao.columns:
-        st.error(f"❌ Coluna '{column_name}' não encontrada!")
+    if not date_column or column_name not in df_satisfacao.columns:
         return "N/A", "Coluna não encontrada", "metric-info", ""
     
-    st.write(f"✅ **Coluna de respostas:** `{column_name}`")
-    st.write(f"📊 **Respostas não-nulas:** {len(df_satisfacao[column_name].dropna())} de {len(df_satisfacao)}")
+    # === DEBUG ESSENCIAL PARA VERIFICAR DATA ===
+    st.write(f"**📊 DEBUG - Verificação de Data:**")
+    st.write(f"- Total de registros: {len(df_satisfacao)}")
+    st.write(f"- Coluna de data: `{date_column}`")
+    st.write(f"- Tipo da coluna: {df_satisfacao[date_column].dtype}")
     
-    # === DEBUG 4: ANALISAR COLUNA DE DATA ANTES DA CONVERSÃO ===
-    st.write(f"**📅 Análise da coluna de data `{date_column}`:**")
-    st.write(f"- Valores não-nulos: {len(df_satisfacao[date_column].dropna())}")
-    st.write(f"- Primeiros valores: {df_satisfacao[date_column].head(5).tolist()}")
-    st.write(f"- Tipo atual: {df_satisfacao[date_column].dtype}")
+    # Mostrar amostra das datas
+    sample_dates = df_satisfacao[date_column].dropna().head(5)
+    st.write(f"- Amostra de datas: {sample_dates.tolist()}")
     
-    # === DEBUG 5: CONVERSÃO DE DATA COM ANÁLISE ===
-    df_temp = df_satisfacao.copy()
+    # Range completo
+    if len(sample_dates) > 0:
+        data_min = df_satisfacao[date_column].min()
+        data_max = df_satisfacao[date_column].max()
+        st.write(f"- Range completo: {data_min} até {data_max}")
     
-    # Tentar diferentes formatos de conversão
-    original_count = len(df_temp)
-    
-    # Se já for datetime, não converter
-    if pd.api.types.is_datetime64_any_dtype(df_temp[date_column]):
-        st.write("✅ Coluna já está em formato datetime")
-    else:
-        st.write("🔄 Convertendo para datetime...")
-        df_temp[date_column] = pd.to_datetime(df_temp[date_column], errors='coerce', dayfirst=True)
-    
-    # Verificar quantos dados foram perdidos na conversão
-    valid_dates = df_temp[date_column].dropna()
-    st.write(f"📅 **Após conversão de data:**")
-    st.write(f"- Datas válidas: {len(valid_dates)} de {original_count}")
-    st.write(f"- Dados perdidos na conversão: {original_count - len(valid_dates)}")
-    
-    if len(valid_dates) == 0:
-        st.error("❌ Nenhuma data válida após conversão!")
-        return "N/A", "Sem datas válidas", "metric-info", ""
-    
-    # === DEBUG 6: MOSTRAR RANGE DE DATAS ===
-    data_min = valid_dates.min()
-    data_max = valid_dates.max()
-    st.write(f"📊 **Range das datas:** {data_min.strftime('%d/%m/%Y %H:%M')} até {data_max.strftime('%d/%m/%Y %H:%M')}")
-    
-    # === DEBUG 7: DEFINIR PERÍODOS E MOSTRAR ===
+    # === DEFINIR PERÍODOS ===
     hoje = datetime.now()
     inicio_atual = hoje - timedelta(days=30)
+    st.write(f"- Hoje: {hoje.strftime('%d/%m/%Y %H:%M')}")
+    st.write(f"- Início período (30 dias atrás): {inicio_atual.strftime('%d/%m/%Y %H:%M')}")
+    
+    # === FILTRAR DADOS ===
+    df_valid = df_satisfacao.dropna(subset=[date_column])
+    
+    # Filtrar período atual
+    dados_atual = df_valid[
+        (df_valid[date_column] >= inicio_atual) & 
+        (df_valid[date_column] <= hoje)
+    ]
+    
+    # Filtrar período anterior  
     inicio_anterior = hoje - timedelta(days=60)
     fim_anterior = hoje - timedelta(days=30)
+    dados_anterior = df_valid[
+        (df_valid[date_column] >= inicio_anterior) & 
+        (df_valid[date_column] < fim_anterior)
+    ]
     
-    st.write(f"**📅 Períodos definidos:**")
-    st.write(f"- Hoje: {hoje.strftime('%d/%m/%Y %H:%M')}")
-    st.write(f"- Início período atual (30 dias atrás): {inicio_atual.strftime('%d/%m/%Y %H:%M')}")
-    st.write(f"- Início período anterior (60 dias atrás): {inicio_anterior.strftime('%d/%m/%Y %H:%M')}")
-    st.write(f"- Fim período anterior (30 dias atrás): {fim_anterior.strftime('%d/%m/%Y %H:%M')}")
+    st.write(f"**📅 Resultados do filtro:**")
+    st.write(f"- Registros no período atual: {len(dados_atual)}")
+    st.write(f"- Registros no período anterior: {len(dados_anterior)}")
     
-    # === DEBUG 8: FILTRAR E CONTAR ===
-    # Dados com datas válidas
-    df_valid = df_temp.dropna(subset=[date_column])
-    st.write(f"📊 **Registros com data válida:** {len(df_valid)}")
-    
-    # Filtrar por período atual
-    dados_atual = df_valid[(df_valid[date_column] >= inicio_atual) & (df_valid[date_column] <= hoje)]
-    st.write(f"📊 **Registros no período atual:** {len(dados_atual)}")
-    
-    # Filtrar por período anterior  
-    dados_anterior = df_valid[(df_valid[date_column] >= inicio_anterior) & (df_valid[date_column] < fim_anterior)]
-    st.write(f"📊 **Registros no período anterior:** {len(dados_anterior)}")
-    
-    # === DEBUG 9: ANALISAR RESPOSTAS ===
+    # === ANALISAR RESPOSTAS ===
     respostas_atual = dados_atual[column_name].dropna()
     respostas_anterior = dados_anterior[column_name].dropna()
     
-    st.write(f"**📊 Respostas válidas (não-nulas):**")
-    st.write(f"- Período atual: {len(respostas_atual)} respostas")
-    st.write(f"- Período anterior: {len(respostas_anterior)} respostas")
+    st.write(f"- Respostas válidas atual: {len(respostas_atual)}")
+    st.write(f"- Respostas válidas anterior: {len(respostas_anterior)}")
     
-    # === DEBUG 10: MOSTRAR DISTRIBUIÇÃO POR DIA ===
+    # === MOSTRAR DISTRIBUIÇÃO POR DIA (ÚLTIMOS 15 DIAS) ===
     if len(dados_atual) > 0:
-        with st.expander("📊 Distribuição por dia (últimos 30 dias)"):
-            dados_atual_copy = dados_atual.copy()
-            dados_atual_copy['data_dia'] = dados_atual_copy[date_column].dt.date
-            distribuicao = dados_atual_copy.groupby('data_dia').size().reset_index(columns=['qtd'])
-            distribuicao.columns = ['Data', 'Quantidade']
-            st.dataframe(distribuicao.tail(15))  # Últimos 15 dias
+        with st.expander("📊 Distribuição por dia (últimos 15 dias)"):
+            dados_recentes = dados_atual.copy()
+            dados_recentes['data_dia'] = dados_recentes[date_column].dt.date
+            
+            # Filtrar últimos 15 dias
+            quinze_dias_atras = hoje - timedelta(days=15)
+            dados_15_dias = dados_recentes[dados_recentes[date_column] >= quinze_dias_atras]
+            
+            if len(dados_15_dias) > 0:
+                distribuicao = dados_15_dias.groupby('data_dia').size().reset_index()
+                distribuicao.columns = ['Data', 'Quantidade']
+                distribuicao = distribuicao.sort_values('Data', ascending=False)
+                st.dataframe(distribuicao, use_container_width=True)
+            else:
+                st.write("Nenhum dado nos últimos 15 dias")
     
-    # === DEBUG 11: VERIFICAR SE TIMEZONE ESTÁ AFETANDO ===
-    st.write(f"**🌐 Informações de timezone:**")
-    if hasattr(df_valid[date_column].dtype, 'tz') and df_valid[date_column].dtype.tz is not None:
-        st.write(f"- Timezone detectado: {df_valid[date_column].dtype.tz}")
-        st.write("⚠️ Pode estar afetando o filtro de período!")
-        
-        # Converter para timezone local
-        df_valid[date_column] = df_valid[date_column].dt.tz_convert(None)
-        st.write("🔄 Convertido para timezone local")
-        
-        # Refiltrar
-        dados_atual = df_valid[(df_valid[date_column] >= inicio_atual) & (df_valid[date_column] <= hoje)]
-        dados_anterior = df_valid[(df_valid[date_column] >= inicio_anterior) & (df_valid[date_column] < fim_anterior)]
-        respostas_atual = dados_atual[column_name].dropna()
-        respostas_anterior = dados_anterior[column_name].dropna()
-        
-        st.write(f"✅ **Após correção de timezone:**")
-        st.write(f"- Período atual: {len(respostas_atual)} respostas")
-        st.write(f"- Período anterior: {len(respostas_anterior)} respostas")
-    else:
-        st.write("- Sem timezone específico")
-    
-    # === CONTINUAR COM O CÁLCULO NORMAL SE HOUVER DADOS ===
     if len(respostas_atual) == 0:
-        st.warning("⚠️ Nenhuma resposta encontrada no período atual após todos os filtros!")
+        st.error("❌ Nenhuma resposta encontrada no período atual!")
         return "N/A", "Sem dados nos últimos 30 dias", "metric-warning", ""
     
-    # Se chegou até aqui com dados, continuar com o cálculo do NPS normalmente...
+    # === CONTINUAR COM CÁLCULO NORMAL ===
     if is_nps:
-        # Cálculo do NPS (código original mantido)
+        # Cálculo do NPS
         categorias_atual = respostas_atual.apply(categorize_nps_from_text)
         promotores_atual = (categorias_atual == 'Promotor').sum()
         neutros_atual = (categorias_atual == 'Neutro').sum()
         detratores_atual = (categorias_atual == 'Detrator').sum()
-        indefinidos_atual = (categorias_atual == 'Indefinido').sum()
         total_validas_atual = promotores_atual + neutros_atual + detratores_atual
         
         if total_validas_atual == 0:
@@ -721,7 +679,24 @@ def calculate_satisfaction_with_comparison(df_satisfacao, column_name, is_nps=Fa
             
         valor_atual = ((promotores_atual - detratores_atual) / total_validas_atual * 100)
         
-        # Calcular período anterior se houver dados
+        # Debug do NPS
+        with st.expander("🔍 Debug NPS - Clique para ver detalhes"):
+            st.write(f"**📊 Período Atual ({len(respostas_atual)} respostas):**")
+            st.write(f"- ✅ Promotores (9-10): {promotores_atual}")
+            st.write(f"- ➡️ Neutros (7-8): {neutros_atual}")
+            st.write(f"- ❌ Detratores (0-6): {detratores_atual}")
+            st.write(f"- 📊 Total válidas: {total_validas_atual}")
+            st.write(f"- 🎯 NPS: {valor_atual:.1f}% = ({promotores_atual} - {detratores_atual}) / {total_validas_atual} * 100")
+            
+            # Amostra das respostas
+            st.write("**🔍 Amostra (primeiras 10 respostas):**")
+            amostra = respostas_atual.head(10).tolist()
+            for i, resp in enumerate(amostra, 1):
+                categoria = categorize_nps_from_text(resp)
+                emoji = "✅" if categoria == "Promotor" else "➡️" if categoria == "Neutro" else "❌"
+                st.write(f"  {i}. `{resp}` → {emoji} {categoria}")
+        
+        # Calcular comparação com período anterior
         if len(respostas_anterior) > 0:
             categorias_anterior = respostas_anterior.apply(categorize_nps_from_text)
             promotores_anterior = (categorias_anterior == 'Promotor').sum()
@@ -743,7 +718,7 @@ def calculate_satisfaction_with_comparison(df_satisfacao, column_name, is_nps=Fa
                     trend = f"➡️ {diferenca:+.0f} pts vs período anterior"
                     color_class = "metric-success" if valor_atual >= 50 else "metric-warning" if valor_atual >= 0 else "metric-danger"
             else:
-                trend = f"{total_validas_atual} avaliações (sem dados anteriores válidos)"
+                trend = f"{total_validas_atual} avaliações (sem dados anteriores)"
                 color_class = "metric-success" if valor_atual >= 50 else "metric-warning" if valor_atual >= 0 else "metric-danger"
         else:
             trend = f"{total_validas_atual} avaliações (sem período anterior)"
@@ -752,11 +727,11 @@ def calculate_satisfaction_with_comparison(df_satisfacao, column_name, is_nps=Fa
         return f"{valor_atual:.0f}", trend, color_class, ""
     
     else:
-        # Outras métricas (código original mantido)
+        # Outras métricas (Atendimento, Produto, Prazo)
         scores_atual = respostas_atual.apply(convert_text_score_to_number).dropna()
         
         if len(scores_atual) == 0:
-            return "N/A", "Erro na conversão de scores", "metric-warning", ""
+            return "N/A", "Erro na conversão", "metric-warning", ""
             
         valor_atual = scores_atual.mean()
         
@@ -767,13 +742,13 @@ def calculate_satisfaction_with_comparison(df_satisfacao, column_name, is_nps=Fa
                 diferenca = valor_atual - valor_anterior
                 
                 if diferenca > 0.3:
-                    trend = f"↗️ +{diferenca:.1f} vs período anterior"
+                    trend = f"↗️ +{diferenca:.1f} vs anterior"
                     color_class = "metric-success"
                 elif diferenca < -0.3:
-                    trend = f"↘️ {diferenca:.1f} vs período anterior"
+                    trend = f"↘️ {diferenca:.1f} vs anterior"
                     color_class = "metric-danger"
                 else:
-                    trend = f"➡️ {diferenca:+.1f} vs período anterior"
+                    trend = f"➡️ {diferenca:+.1f} vs anterior"
                     color_class = "metric-success" if valor_atual >= 8 else "metric-warning" if valor_atual >= 6 else "metric-danger"
             else:
                 trend = f"{len(respostas_atual)} avaliações"
