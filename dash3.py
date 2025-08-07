@@ -1041,8 +1041,8 @@ def main():
     tab1, tab2, tab3, tab4 = st.tabs([
         "📊 Visão Executiva", 
         "👥 Gestão de Clientes", 
-        "📈 Analytics & Performance",
-        "🔔 Central de Ações"
+        "📈 Analytics & Performance (EM CONTRUÇÃO)",
+        "🔔 Central de Ações (EM CONTRUÇÃO)"
     ])
     
     with tab1:
