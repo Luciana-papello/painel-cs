@@ -993,7 +993,12 @@ def main():
         # Filtros aprimorados
         st.markdown("### 📊 Filtros de Análise")
         
-        
+        period_days = st.selectbox(
+            "📅 Período de análise",
+            [30, 60, 90, 180, 365],
+            index=2,
+            help="Período em dias para análise de tendências"
+        )
         
         team_filter = st.selectbox(
             "👥 Membro da equipe",
@@ -1036,8 +1041,8 @@ def main():
     tab1, tab2, tab3, tab4 = st.tabs([
         "📊 Visão Executiva", 
         "👥 Gestão de Clientes", 
-        "📈 Analytics & Performance (EM CONTRUÇÃO)",
-        "🔔 Central de Ações (EM CONSTRUÇÃO)"
+        "📈 Analytics & Performance",
+        "🔔 Central de Ações"
     ])
     
     with tab1:
@@ -1047,7 +1052,7 @@ def main():
         show_client_management_enhanced(df_clientes, actions_log)
     
     with tab3:
-        show_analytics_dashboard(df_clientes, df_pedidos, df_satisfacao, actions_log, )
+        show_analytics_dashboard(df_clientes, df_pedidos, df_satisfacao, actions_log, period_days)
     
     with tab4:
         show_actions_center_enhanced(df_clientes, actions_log, team_filter)
@@ -2578,7 +2583,7 @@ def show_client_management_enhanced(df_clientes, actions_log):
 def show_analytics_dashboard(df_clientes, df_pedidos, df_satisfacao, actions_log, period_days):
     """Dashboard de analytics avançado"""
     
-    st.markdown('<div class="section-header"><span class="emoji">📈</span><h2>Analytics & Performance (EM CONTRUÇÃO)</h2></div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-header"><span class="emoji">📈</span><h2>Analytics & Performance</h2></div>', unsafe_allow_html=True)
     
     # Métricas de performance da equipe
     col1, col2, col3, col4 = st.columns(4)
@@ -2710,7 +2715,7 @@ def show_analytics_dashboard(df_clientes, df_pedidos, df_satisfacao, actions_log
 def show_actions_center_enhanced(df_clientes, actions_log, team_filter):
     """Central de ações aprimorada"""
     
-    st.markdown('<div class="section-header"><span class="emoji">🔔</span><h2>Central de Ações (EM CONSTRUÇÃO)</h2></div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-header"><span class="emoji">🔔</span><h2>Central de Ações</h2></div>', unsafe_allow_html=True)
     
     # Painel de controle de ações
     acoes_pendentes = df_clientes[
